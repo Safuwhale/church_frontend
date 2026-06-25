@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { LogOut, LayoutDashboard, Users, BookOpen, Settings, QrCode, Menu, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import OverviewTab from '../components/OverviewTab';
+import DirectoryTab from '../components/DirectoryTab';
+import MyQRCodeTab from '../components/MyQRCodeTab';
+import AttendanceRegistryTab from '../components/AttendanceRegistryTab';
 
 export default function Dashboard() {
   const [userData, setUserData] = useState(null);
@@ -150,36 +154,18 @@ export default function Dashboard() {
           <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 md:p-8 min-h-[60vh]">
             
             {activeTab === 'overview' && (
-               <div className="text-center py-10">
-                 <div className="bg-brand-light w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-brand-blue">
-                   <LayoutDashboard size={32} />
-                 </div>
-                 <h3 className="font-display text-xl font-bold">Dashboard Overview</h3>
-                 <p className="text-slate-500 max-w-md mx-auto mt-2">
-                   Quick stats and service controls will appear here.
-                 </p>
-               </div>
-            )}
-
+             <OverviewTab token={localStorage.getItem('horyc_token')} />
+          )}
+            {activeTab === 'qr' && (
+             <MyQRCodeTab userData={userData} />
+          )}
             {activeTab === 'directory' && (
-               <div className="text-center py-10">
-                 <Users size={48} className="mx-auto text-slate-300 mb-4" />
-                 <h3 className="font-display text-xl font-bold">Members Directory</h3>
-                 <p className="text-slate-500 max-w-md mx-auto mt-2">
-                   List of all members, contact details, and role promotion tools will go here.
-                 </p>
-               </div>
-            )}
+             <DirectoryTab token={localStorage.getItem('horyc_token')} />
+          )}
 
             {activeTab === 'registry' && (
-               <div className="text-center py-10">
-                 <BookOpen size={48} className="mx-auto text-slate-300 mb-4" />
-                 <h3 className="font-display text-xl font-bold">Attendance Registry</h3>
-                 <p className="text-slate-500 max-w-md mx-auto mt-2">
-                   Historical data, graphs, and export features to track Sunday-to-Sunday impact.
-                 </p>
-               </div>
-            )}
+             <AttendanceRegistryTab token={localStorage.getItem('horyc_token')} />
+          )}
 
             {activeTab === 'settings' && (
                <div className="text-center py-10">
