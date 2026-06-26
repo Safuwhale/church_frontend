@@ -5,6 +5,7 @@ import OverviewTab from '../components/OverviewTab';
 import DirectoryTab from '../components/DirectoryTab';
 import MyQRCodeTab from '../components/MyQRCodeTab';
 import AttendanceRegistryTab from '../components/AttendanceRegistryTab';
+import CellGroupTab from '../components/CellGroupTab';
 
 export default function Dashboard() {
   const [userData, setUserData] = useState(null);
@@ -165,6 +166,9 @@ export default function Dashboard() {
 
             {activeTab === 'registry' && (
              <AttendanceRegistryTab token={localStorage.getItem('horyc_token')} />
+          )}
+          {activeTab === 'cell' && (
+             <CellGroupTab userData={userData} />
           )}
 
             {activeTab === 'settings' && (
