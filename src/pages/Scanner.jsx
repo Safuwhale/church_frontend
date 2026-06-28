@@ -1,29 +1,46 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Scanner } from '@yudiel/react-qr-scanner';
-import { ArrowLeft, UserCheck, CheckCircle2, AlertCircle, Volume2, VolumeX, Keyboard, QrCode, Search, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-
-// MOCK DATABASE: Simulating the youth directory
-const MOCK_DIRECTORY = [
-  { horycId: 'HORYC-001', firstName: 'Daniel', lastName: 'Okafor', phone: '08011112222', role: 'member' },
-  { horycId: 'HORYC-012', firstName: 'Sarah', lastName: 'Ibrahim', phone: '08033334444', role: 'usher' },
-  { horycId: 'HORYC-008', firstName: 'Michael', lastName: 'Johnson', phone: '08055556666', role: 'leader' },
-  { horycId: 'HORYC-089', firstName: 'Grace', lastName: 'Emmanuel', phone: '08077778888', role: 'member' },
-  { horycId: 'HORYC-105', firstName: 'Danielle', lastName: 'Peters', phone: '08099990000', role: 'member' },
-];
+import { UserCheck, CheckCircle2, AlertCircle, Volume2, VolumeX, Keyboard, QrCode, Search, X, Info } from 'lucide-react'; // Added Info
+import { useNavigate, useParams } from 'react-router-dom'; // Added useParams
+import { secureFetch } from '../api/api';
 
 export default function UsherScanner() {
   const navigate = useNavigate();
+  const { id: serviceId } = useParams(); // Extract service ID from URL
+
+  useEffect(() => {
+    const token = localStorage.getItem('horyc_token');
+    const role = localStorage.getItem('horyc_role');
+    
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+
+    if (role !== 'usher' && role !== 'hod') {
+      navigate('/portal');
+      return;
+    }
+
+    // Security Guard: Prevent accessing scanner without a selected service
+    if (!serviceId) {
+      navigate('/usher-dashboard');
+    }
+  }, [navigate, serviceId]);
+
+  // Added 'exists' to potential scan states
   const [scanState, setScanState] = useState('idle');
   const [lastScannedId, setLastScannedId] = useState('');
   const [recentCheckIns, setRecentCheckIns] = useState([]);
+  const [errorMessage, setErrorMessage] = useState('');
   
   const [soundEnabled, setSoundEnabled] = useState(true); 
   const [inputMode, setInputMode] = useState('scan');
   
-  // Omni-Search States
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
   const [selectedMember, setSelectedMember] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
   
   const soundEnabledRef = useRef(true); 
   const isProcessingRef = useRef(false);
@@ -49,97 +66,143 @@ export default function UsherScanner() {
       osc.start();
       osc.stop(ctx.currentTime + 0.1);
     } catch (error) {
-      console.log("Audio playback failed");
+      console.warn("Audio playback failed", error);
     }
   };
 
-  const processCheckIn = (qrValue) => {
+  // Live Omni-Search Integration
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await secureFetch(`/api/users/search?q=${searchQuery}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data);
+        } else {
+            console.error("Search API returned an error:", res.status);
+        }
+      } catch (err) {
+        console.error("Search failed:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  const processCheckIn = async (qrValue) => {
     if (isProcessingRef.current || !qrValue) return;
     
     isProcessingRef.current = true;
     setLastScannedId(qrValue);
 
-    console.log("Sending to backend:", qrValue);
+    try {
+      const response = await secureFetch('/api/attendance/scan', {
+        method: 'POST',
+        // Injected service_id into the payload
+        body: JSON.stringify({ 
+          serial_number: qrValue,
+          service_id: serviceId 
+        })
+      });
 
-    setTimeout(() => {
-      if (qrValue.toUpperCase().startsWith('HORYC-')) {
+      if (response.ok) {
         setScanState('success');
         playSuccessSound(); 
         
         setRecentCheckIns(prev => [
-          { id: Date.now(), horycId: qrValue.toUpperCase(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
+          { 
+            id: Date.now(), 
+            serial_number: qrValue.toUpperCase(), 
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+          },
           ...prev
         ].slice(0, 5));
         
-        // Reset manual states
         setSearchQuery('');
         setSelectedMember(null);
       } else {
-        setScanState('error');
+        const errorData = await response.json();
+        const msg = errorData.detail || "Invalid Check-in";
+        
+        // Detect duplicate check-in from backend response
+        if (msg.toLowerCase().includes("already")) {
+          setScanState('exists');
+          setErrorMessage("Member already checked in");
+        } else {
+          setScanState('error');
+          setErrorMessage(msg);
+        }
       }
-
+    } catch (error) {
+      console.error("Check-in error:", error);
+      setErrorMessage("Network Error");
+      setScanState('error');
+    } finally {
       setTimeout(() => {
         setScanState('idle');
         setLastScannedId('');
+        setErrorMessage('');
         isProcessingRef.current = false;
       }, 2500);
-
-    }, 500);
+    }
   };
 
   const handleScan = (detectedCodes) => {
-    if (detectedCodes.length > 0) {
+    if (detectedCodes && detectedCodes.length > 0) {
       processCheckIn(detectedCodes[0].rawValue);
     }
   };
 
-  // Omni-Search Filter Logic
-  const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    const query = searchQuery.toLowerCase();
-    return MOCK_DIRECTORY.filter(member => 
-      member.firstName.toLowerCase().includes(query) ||
-      member.lastName.toLowerCase().includes(query) ||
-      member.phone.includes(query) ||
-      member.horycId.toLowerCase().includes(query)
-    );
-  }, [searchQuery]);
-
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col font-sans">
-      
       <header className="p-4 md:p-6 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md z-10">
-        <button 
-          onClick={() => navigate('/dashboard')}
-          className="p-2 md:px-4 md:py-2 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium"
-        >
-          <ArrowLeft size={18} />
-          <span className="hidden sm:inline">Back to Dashboard</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-display font-bold text-slate-900 text-sm">
+            H
+          </div>
+          <span className="font-display font-bold text-white tracking-wider">HORYC Gate</span>
+        </div>
         
         <div className="flex items-center gap-3">
-          <button 
-            onClick={handleToggleSound}
-            className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium text-slate-300"
-          >
-            {soundEnabled ? <Volume2 size={18} className="text-emerald-400" /> : <VolumeX size={18} className="text-slate-500" />}
-          </button>
-
-          <div className="flex items-center gap-2 text-emerald-400 font-medium text-sm px-3 py-1.5 bg-emerald-400/10 rounded-full border border-emerald-400/20">
+          <div className="flex items-center gap-2 text-emerald-400 font-medium text-sm px-3 py-1.5 bg-emerald-400/10 rounded-full border border-emerald-400/20 mr-2">
             <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
-            Scanner Active
+            <span className="hidden sm:inline">Scanner Active</span>
           </div>
+
+          <button 
+            onClick={handleToggleSound}
+            className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors flex items-center justify-center text-slate-300"
+            title="Toggle Sound"
+          >
+            {soundEnabled ? <Volume2 size={18} className="text-emerald-400" /> : <VolumeX size={18} className="text-slate-500" />}
+          </button>
+
+          <button 
+            onClick={() => {
+              localStorage.clear();
+              navigate('/login');
+            }}
+            className="p-2 md:px-4 md:py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium"
+          >
+            <span className="hidden sm:inline">End Shift</span>
+            <X size={18} className="sm:hidden" />
+          </button>
         </div>
       </header>
 
       <main className="flex-1 flex flex-col lg:flex-row p-6 gap-6 max-w-6xl mx-auto w-full">
-        
-        {/* LEFT SIDE: Viewport Area */}
         <div className="flex-1 flex flex-col items-center justify-center">
-          
           <div className="text-center mb-6">
             <h1 className="font-display text-3xl font-bold mb-2">Gate Check-in</h1>
             
@@ -161,11 +224,11 @@ export default function UsherScanner() {
 
           <div className={`relative w-full max-w-md aspect-square rounded-3xl overflow-hidden border-4 transition-colors duration-300 shadow-2xl bg-slate-950 flex flex-col items-center justify-center ${
             scanState === 'success' ? 'border-emerald-500 shadow-emerald-500/20' : 
+            scanState === 'exists' ? 'border-amber-500 shadow-amber-500/20' : 
             scanState === 'error' ? 'border-red-500 shadow-red-500/20' : 
             'border-slate-700 shadow-black/50'
           }`}>
             
-            {/* SCAN MODE */}
             {inputMode === 'scan' && (
               <Scanner 
                 onScan={handleScan}
@@ -176,7 +239,6 @@ export default function UsherScanner() {
               />
             )}
 
-            {/* MANUAL MODE (OMNI-SEARCH) */}
             {inputMode === 'manual' && (
               <div className="w-full h-full p-6 flex flex-col relative bg-slate-900">
                 {!selectedMember ? (
@@ -202,40 +264,39 @@ export default function UsherScanner() {
                       )}
                     </div>
 
-                    {/* Search Results Dropdown */}
                     <div className="mt-4 flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                      {searchQuery && searchResults.length === 0 && (
+                      {isSearching && <p className="text-center text-slate-500 mt-4 text-sm animate-pulse">Searching...</p>}
+                      {!isSearching && searchQuery && searchResults.length === 0 && (
                         <p className="text-center text-slate-500 mt-4 text-sm">No members found.</p>
                       )}
-                      {searchResults.map(member => (
+                      {!isSearching && searchResults.map(member => (
                         <button
-                          key={member.horycId}
+                          key={member.serial_number}
                           onClick={() => setSelectedMember(member)}
-                          className="w-full text-left p-3 rounded-xl bg-slate-800 border border-slate-700 hover:border-brand-blue hover:bg-slate-800/80 transition-all flex items-center justify-between group"
+                          className="w-full text-left p-3 rounded-xl bg-slate-800 border border-slate-700 hover:border-blue-500 hover:bg-slate-800/80 transition-all flex items-center justify-between group"
                         >
                           <div>
-                            <p className="font-bold text-white group-hover:text-brand-blue transition-colors">
-                              {member.firstName} {member.lastName}
+                            <p className="font-bold text-white group-hover:text-blue-400 transition-colors">
+                              {member.first_name} {member.last_name}
                             </p>
-                            <p className="text-xs text-slate-400 mt-0.5">{member.phone}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{member.phone_number}</p>
                           </div>
                           <span className="font-mono text-xs text-slate-500 bg-slate-900 px-2 py-1 rounded-md border border-slate-700">
-                            {member.horycId}
+                            {member.serial_number}
                           </span>
                         </button>
                       ))}
                     </div>
                   </>
                 ) : (
-                  /* CONFIRMATION CARD */
                   <div className="flex flex-col items-center justify-center h-full animate-in zoom-in-95 duration-200">
-                    <div className="w-16 h-16 bg-blue-500/20 text-brand-blue rounded-full flex items-center justify-center mb-4 border border-blue-500/30">
+                    <div className="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mb-4 border border-blue-500/30">
                       <UserCheck size={32} />
                     </div>
                     <h3 className="text-xl font-bold text-white text-center">Confirm Check-in</h3>
                     <div className="bg-slate-800 w-full p-4 rounded-xl border border-slate-700 mt-4 mb-6 text-center">
-                      <p className="text-2xl font-bold text-brand-blue mb-1">{selectedMember.firstName} {selectedMember.lastName}</p>
-                      <p className="font-mono text-slate-400">{selectedMember.horycId}</p>
+                      <p className="text-2xl font-bold text-blue-400 mb-1">{selectedMember.first_name} {selectedMember.last_name}</p>
+                      <p className="font-mono text-slate-400">{selectedMember.serial_number}</p>
                     </div>
                     
                     <div className="flex gap-3 w-full">
@@ -246,7 +307,7 @@ export default function UsherScanner() {
                         Cancel
                       </button>
                       <button 
-                        onClick={() => processCheckIn(selectedMember.horycId)}
+                        onClick={() => processCheckIn(selectedMember.serial_number)}
                         disabled={isProcessingRef.current}
                         className="flex-1 py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-600/20"
                       >
@@ -258,7 +319,6 @@ export default function UsherScanner() {
               </div>
             )}
 
-            {/* OVERLAYS */}
             {scanState === 'success' && (
               <div className="absolute inset-0 bg-emerald-500/90 flex flex-col items-center justify-center z-20 backdrop-blur-sm animate-in fade-in duration-200">
                 <CheckCircle2 size={64} className="text-white mb-4" />
@@ -267,17 +327,25 @@ export default function UsherScanner() {
               </div>
             )}
 
+            {/* NEW: Amber "Exists" Overlay */}
+            {scanState === 'exists' && (
+              <div className="absolute inset-0 bg-amber-500/90 flex flex-col items-center justify-center z-20 backdrop-blur-sm animate-in fade-in duration-200 text-center px-4">
+                <Info size={64} className="text-white mb-4" />
+                <h3 className="text-2xl font-bold text-white mb-1">Already Checked In</h3>
+                <p className="text-amber-100">{lastScannedId}</p>
+              </div>
+            )}
+
             {scanState === 'error' && (
-              <div className="absolute inset-0 bg-red-600/90 flex flex-col items-center justify-center z-20 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="absolute inset-0 bg-red-600/90 flex flex-col items-center justify-center z-20 backdrop-blur-sm animate-in fade-in duration-200 text-center px-4">
                 <AlertCircle size={64} className="text-white mb-4" />
-                <h3 className="text-2xl font-bold text-white mb-1">Invalid Code</h3>
-                <p className="text-red-200">Please try again</p>
+                <h3 className="text-2xl font-bold text-white mb-1">Error</h3>
+                <p className="text-red-200">{errorMessage}</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* RIGHT SIDE: Recent Activity Log */}
         <div className="w-full lg:w-80 bg-slate-800 rounded-3xl p-6 border border-slate-700 h-fit">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-700">
             <UserCheck className="text-emerald-400" size={24} />
@@ -290,7 +358,7 @@ export default function UsherScanner() {
               recentCheckIns.map((record) => (
                 <div key={record.id} className="bg-slate-700/50 p-3.5 rounded-xl border border-slate-600 flex items-center justify-between animate-in slide-in-from-left-4 duration-300">
                   <div>
-                    <p className="font-mono text-emerald-400 font-bold tracking-wider text-sm">{record.horycId}</p>
+                    <p className="font-mono text-emerald-400 font-bold tracking-wider text-sm">{record.serial_number}</p>
                   </div>
                   <span className="text-xs text-slate-400 font-medium bg-slate-800 px-2 py-1 rounded-md">
                     {record.time}

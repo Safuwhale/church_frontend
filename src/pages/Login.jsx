@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { LogIn } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 export default function Login() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -16,7 +17,6 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      // 1. Send credentials to FastAPI
       const response = await fetch('http://localhost:8000/api/users/login', {
         method: 'POST',
         headers: {
@@ -30,16 +30,35 @@ export default function Login() {
 
       const data = await response.json();
 
-      // 2. Check if the login failed
       if (!response.ok) {
         throw new Error(data.detail || 'Invalid phone number or password');
       }
 
-      // 3. Success! Save the token to the browser's Local Storage
+      // THE FIX: We target data.user to pull the nested details from FastAPI
       localStorage.setItem('horyc_token', data.access_token);
       
-      // 4. Send them to the Dashboard!
-      navigate('/dashboard');
+      // Ensure we safely check if data.user exists before pulling properties
+      if (data.user) {
+        localStorage.setItem('horyc_role', data.user.role || 'member');
+        localStorage.setItem('horyc_name', data.user.first_name || 'Member');
+        localStorage.setItem('horyc_id', data.user.serial_number || 'HORYC-000');
+      } else {
+        // Fallbacks just in case the backend payload shape changes
+        localStorage.setItem('horyc_role', 'member');
+        localStorage.setItem('horyc_name', 'Member');
+      }
+      
+      // Route them based on the newly mapped role!
+      // Route them based on their specific role
+      const userRole = data.user?.role || 'member';
+      
+      if (userRole === 'hod') {
+        navigate('/admin');
+      } else if (userRole === 'usher') {
+        navigate('/usher-dashboard'); // <-- Ushers go straight to the gate!
+      } else {
+        navigate('/portal'); // Members and Leaders go to their personal hub
+      }
 
     } catch (err) {
       setError(err.message);
@@ -101,6 +120,14 @@ export default function Login() {
             {isLoading ? 'Authenticating...' : 'Sign In'}
           </button>
         </form>
+        <div className="mt-8 text-center border-t border-slate-100 pt-6">
+          <p className="text-sm text-slate-500">
+            First time here?{' '}
+            <Link to="/register" className="font-bold text-brand-blue hover:text-blue-700 transition-colors">
+              Create your profile
+            </Link>
+          </p>
+        </div>
 
       </div>
     </div>

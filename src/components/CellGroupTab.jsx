@@ -25,34 +25,9 @@ export default function CellGroupTab({ userData }) {
   };
 
   return (
-    <div className="space-y-6">
-      
-      {/* SECTION 1: THE TWO-WAY CHECK-IN BANNER */}
-      <div className="bg-gradient-to-br from-brand-dark to-slate-800 p-6 md:p-8 rounded-3xl border border-slate-700 shadow-lg text-white relative overflow-hidden">
-        {/* Background decorative element */}
-        <div className="absolute -right-10 -top-10 opacity-10 pointer-events-none">
-          <Camera size={200} />
-        </div>
+    <div className="space-y-6"> 
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <h3 className="font-display text-2xl font-bold mb-2">At the Venue?</h3>
-            <p className="text-slate-300 max-w-md text-sm leading-relaxed">
-              Skip the line. Tap the button below to open your camera and scan the main church poster to instantly check yourself in.
-            </p>
-          </div>
-
-          <button 
-            onClick={handleSelfServiceScan}
-            className="flex items-center justify-center gap-3 px-8 py-4 bg-emerald-500 text-emerald-950 rounded-xl font-bold hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
-          >
-            <Camera size={22} />
-            Scan Venue Poster
-          </button>
-        </div>
-      </div>
-
-      {/* SECTION 2: CELL GROUP DETAILS */}
+      {/* CELL GROUP DETAILS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Left Column: Leader & Info */}

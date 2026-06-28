@@ -1,76 +1,120 @@
+/**
+ * MyQRCodeTab Component
+ * Displays the member's QR Pass and manages the Self-Scanner trigger.
+ */
+
+import { useState, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Download, Info } from 'lucide-react';
+import { Download, Info, Camera } from 'lucide-react';
+import SelfScanner from './SelfScanner'; // Importing your consistent scanner component
 
 export default function MyQRCodeTab({ userData }) {
-  // Fallback in case userData hasn't loaded yet
+  const qrRef = useRef(null);
+  const [isScanning, setIsScanning] = useState(false);
+  
   const qrValue = userData?.serial_number || 'UNKNOWN-ID';
-  const memberName = userData?.first_name || 'Member';
+  const memberName = `${userData?.first_name || ''} ${userData?.last_name || ''}`.trim() || 'Member';
 
+  /**
+   * Triggers the SelfScanner overlay.
+   */
+  const handleSelfServiceScan = () => setIsScanning(true);
+
+  /**
+   * High-quality PNG download logic.
+   */
   const handleDownload = () => {
-    // A quick browser trick to let users save the QR code to their phone's gallery
-    const svg = document.getElementById('horyc-qr-code');
-    const svgData = new XMLSerializer().serializeToString(svg);
+    const svgElement = qrRef.current.querySelector("svg");
+    if (!svgElement) return;
+
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
+    const svgData = new XMLSerializer().serializeToString(svgElement);
     const img = new Image();
-    
+
     img.onload = () => {
-      canvas.width = img.width + 40; // Add padding
-      canvas.height = img.height + 40;
-      ctx.fillStyle = "white"; // White background
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 20, 20);
+      ctx.drawImage(img, 0, 0);
       
-      const pngFile = canvas.toDataURL("image/png");
+      const pngUrl = canvas.toDataURL("image/png");
       const downloadLink = document.createElement("a");
-      downloadLink.download = `${memberName}-HORYC-QR.png`;
-      downloadLink.href = `${pngFile}`;
+      downloadLink.href = pngUrl;
+      downloadLink.download = `HORYC-PASS-${qrValue}.png`;
+      document.body.appendChild(downloadLink);
       downloadLink.click();
+      document.body.removeChild(downloadLink);
     };
-    
-    img.src = "data:image/svg+xml;base64," + btoa(svgData);
+
+    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
   };
 
   return (
-    <div className="max-w-md mx-auto mt-4">
-      <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm text-center">
-        
-        <h3 className="font-display text-2xl font-bold text-brand-dark mb-1">Your Digital Pass</h3>
-        <p className="text-slate-500 text-sm mb-8">
-          Present this code to an Usher when you arrive at Sunday Service.
-        </p>
+    <div className="space-y-6">
+      {/* Self-Scanner Overlay */}
+      {isScanning && <SelfScanner onClose={() => setIsScanning(false)} />}
 
-        {/* The QR Code Container */}
-        <div className="bg-white p-4 rounded-3xl border-4 border-brand-light inline-block mb-6 shadow-sm">
-          <QRCodeSVG 
-            id="horyc-qr-code"
-            value={qrValue} 
-            size={220} 
-            level="H" // High error correction so it scans even if phone is cracked
-            fgColor="#0f172a" // brand-dark
-          />
+      {/* BANNER */}
+      <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-6 md:p-8 rounded-3xl border border-slate-700 shadow-lg text-white relative overflow-hidden">
+        <div className="absolute -right-10 -top-10 opacity-10 pointer-events-none">
+          <Camera size={200} />
         </div>
-
-        <div className="bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100">
-          <p className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">HORYC ID Number</p>
-          <p className="font-mono text-xl font-bold text-brand-dark tracking-widest">{qrValue}</p>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <h3 className="font-display text-2xl font-bold mb-2">At the Venue?</h3>
+            <p className="text-slate-300 max-w-md text-sm leading-relaxed">
+              Skip the line. Tap the button below to open your camera and scan the main church poster to instantly check yourself in.
+            </p>
+          </div>
+          <button 
+            onClick={handleSelfServiceScan}
+            className="flex items-center justify-center gap-3 px-8 py-4 bg-emerald-500 text-emerald-950 rounded-xl font-bold hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+          >
+            <Camera size={22} />
+            Scan Venue Poster
+          </button>
         </div>
-
-        <button 
-          onClick={handleDownload}
-          className="w-full flex items-center justify-center gap-2 bg-brand-light text-brand-blue py-3.5 rounded-xl font-medium hover:bg-blue-50 transition-colors border border-blue-100"
-        >
-          <Download size={18} />
-          Save to Phone Gallery
-        </button>
-
       </div>
 
-      <div className="mt-6 flex items-start gap-3 bg-blue-50 p-4 rounded-2xl text-blue-800 text-sm">
-        <Info size={20} className="shrink-0 mt-0.5 text-brand-blue" />
-        <p>
-          Tip: You can screenshot this page or save the image to your gallery so you can check in even if you don't have internet data at church.
-        </p>
+      {/* WALLET CARD */}
+      <div className="max-w-md mx-auto mt-8">
+        <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col items-center text-center relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-32 bg-slate-900"></div>
+          
+          <div className="relative z-10 w-24 h-24 bg-white rounded-full flex items-center justify-center border-4 border-white shadow-md mb-6">
+             <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center font-display font-bold text-3xl text-white">
+                {memberName.charAt(0)}
+             </div>
+          </div>
+
+          <h2 className="font-display text-2xl font-bold text-slate-800 mb-1">{memberName}</h2>
+          <p className="text-slate-500 mb-8 font-medium">HORYC Youth Member</p>
+
+          <div ref={qrRef} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6">
+            <QRCodeSVG 
+              value={qrValue} 
+              size={200}
+              bgColor={"#ffffff"}
+              fgColor={"#0f172a"}
+              level={"H"}
+              includeMargin={false}
+            />
+          </div>
+
+          <div className="bg-slate-50 border border-slate-100 w-full py-3 rounded-xl mb-6">
+            <p className="font-mono font-bold text-xl tracking-widest text-slate-900">{qrValue}</p>
+          </div>
+
+          <button 
+            onClick={handleDownload}
+            className="flex items-center justify-center gap-2 w-full py-3.5 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 transition-colors"
+          >
+            <Download size={18} />
+            Save QR Pass
+          </button>
+        </div>
       </div>
     </div>
   );

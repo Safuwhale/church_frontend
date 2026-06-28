@@ -1,76 +1,156 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CalendarPlus, Power, Users, Clock, Play, Calendar, Trash2 } from 'lucide-react';
+import { secureFetch } from '../api/api'; // Added secureFetch import
 
 export default function OverviewTab({ token }) {
   const [activeService, setActiveService] = useState(null);
-  
-  const [draftServices, setDraftServices] = useState([
-    { id: 101, name: 'Sunday Service', date: '2026-06-28', status: 'draft' },
-    { id: 102, name: 'Midweek Bible Study', date: '2026-07-02', status: 'draft' }
-  ]);
+  const [draftServices, setDraftServices] = useState([]); // Removed mock data
   
   const [newServiceName, setNewServiceName] = useState('');
   const [newServiceDate, setNewServiceDate] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // FETCH SERVICES ON MOUNT
+  const fetchServices = async () => {
+    try {
+      const res = await secureFetch('/api/services');
+      if (res.ok) {
+        const data = await res.json();
+        
+        // Find the active service and map backend fields to your UI fields
+        const active = data.find(s => s.is_active === true);
+        if (active) {
+          setActiveService({
+            id: active.id,
+            name: active.title,
+            date: active.service_date,
+            status: 'active',
+            checkIns: active.attendance_count || 0, // Fallback if backend doesn't send count yet
+            startTime: active.time_started 
+              ? new Date(active.time_started).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+              : 'N/A'
+          });
+        } else {
+          setActiveService(null);
+        }
+
+        // Find drafts and map fields
+        const drafts = data.filter(s => s.is_active === false);
+        setDraftServices(drafts.map(s => ({
+          id: s.id,
+          name: s.title,
+          date: s.service_date,
+          status: 'draft'
+        })));
+      }
+    } catch (error) {
+      console.error("Error fetching services:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchServices();
+  }, []);
+
   const handleCreateDraft = async (e) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // TODO: Connect to FastAPI POST /api/services
-    setTimeout(() => {
-      const newDraft = {
-        id: Date.now(),
-        name: newServiceName || 'Sunday Service',
-        date: newServiceDate || new Date().toISOString().split('T')[0],
-        status: 'draft'
-      };
-      setDraftServices([...draftServices, newDraft]);
-      setNewServiceName('');
-      setNewServiceDate('');
+    try {
+      const res = await secureFetch('/api/services/create', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: newServiceName,
+          service_date: newServiceDate
+        })
+      });
+
+      if (res.ok) {
+        setNewServiceName('');
+        setNewServiceDate('');
+        await fetchServices(); // Refresh the list from the database
+      } else {
+        const errorData = await res.json();
+        alert(errorData.detail || "Failed to create service.");
+      }
+    } catch (error) {
+      console.error("Create service error:", error);
+      alert("Network Error");
+    } finally {
       setIsLoading(false);
-    }, 600);
+    }
   };
 
-  const handleActivateService = (serviceId) => {
+  const handleActivateService = async (serviceId) => {
     if (activeService) {
       alert("You must end the current active service before starting a new one.");
       return;
     }
 
     setIsLoading(true);
-    // TODO: Connect to FastAPI PATCH /api/services/{id}/activate
-    
-    setTimeout(() => {
-      const serviceToActivate = draftServices.find(s => s.id === serviceId);
-      setActiveService({
-        ...serviceToActivate,
-        status: 'active',
-        checkIns: 0,
-        startTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    try {
+      const res = await secureFetch(`/api/services/${serviceId}/activate`, {
+        method: 'PATCH'
       });
-      setDraftServices(draftServices.filter(s => s.id !== serviceId));
+
+      if (res.ok) {
+        await fetchServices(); // Refresh to update states
+      } else {
+        const errorData = await res.json();
+        alert(errorData.detail || "Failed to activate service.");
+      }
+    } catch (error) {
+      console.error("Activate service error:", error);
+      alert("Network Error");
+    } finally {
       setIsLoading(false);
-    }, 600);
+    }
   };
 
-  const handleDeleteDraft = (serviceId) => {
+  const handleDeleteDraft = async (serviceId) => {
     if (!window.confirm("Are you sure you want to delete this scheduled service?")) return;
     
-    // TODO: Connect to FastAPI DELETE /api/services/{id}
-    setDraftServices(draftServices.filter(s => s.id !== serviceId));
+    setIsLoading(true);
+    try {
+      const res = await secureFetch(`/api/services/${serviceId}`, {
+        method: 'DELETE'
+      });
+
+      if (res.ok) {
+        await fetchServices(); // Refresh the list
+      } else {
+        alert("Failed to delete service.");
+      }
+    } catch (error) {
+      console.error("Delete service error:", error);
+      alert("Network Error");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleEndService = async () => {
     if (!window.confirm("Are you sure you want to close this service? Ushers will no longer be able to scan QR codes.")) return;
-    
+    if (!activeService) return;
+
     setIsLoading(true);
-    // TODO: Connect to FastAPI PATCH /api/services/{id}/close
-    
-    setTimeout(() => {
-      setActiveService(null);
+    try {
+      const res = await secureFetch(`/api/services/${activeService.id}/deactivate`, {
+        method: 'PATCH'
+      });
+
+      if (res.ok) {
+        await fetchServices(); // Refresh to reflect closed status
+      } else {
+        const errorData = await res.json();
+        alert(errorData.detail || "Failed to close service.");
+      }
+    } catch (error) {
+      console.error("Deactivate service error:", error);
+      alert("Network Error");
+    } finally {
       setIsLoading(false);
-    }, 800);
+    }
   };
 
   return (
