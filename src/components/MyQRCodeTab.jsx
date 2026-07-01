@@ -5,7 +5,7 @@
 
 import { useState, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Download, Info, Camera } from 'lucide-react';
+import { Download, Camera } from 'lucide-react';
 import SelfScanner from './SelfScanner'; // Importing your consistent scanner component
 
 export default function MyQRCodeTab({ userData }) {

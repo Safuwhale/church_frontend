@@ -30,9 +30,9 @@ export const secureFetch = async (url, options = {}) => {
   if (response.status === 401) {
     try {
       // Attempt to obtain a new access token using the refresh_token cookie
-      const refreshRes = await fetch(`${API_BASE}/login/users/refresh`, { 
+      const refreshRes = await fetch(`${API_BASE}/api/users/refresh`, { 
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        credentials: 'include'
       });
       
       if (refreshRes.ok) {

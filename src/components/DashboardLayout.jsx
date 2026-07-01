@@ -85,7 +85,7 @@ export default function DashboardLayout({ userData, menuItems, activeTab, setAct
           {userData.role === 'usher' && (
             <div className="pt-4 mt-4 border-t border-slate-800">
               <button
-                onClick={() => navigate('/scanner')}
+                onClick={() => navigate('/usher-dashboard')}
                 className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all duration-200"
               >
                 <ScanLine size={20} />

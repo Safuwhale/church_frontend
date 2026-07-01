@@ -4,38 +4,42 @@
  * Uses @yudiel/react-qr-scanner for consistent scanning logic.
  */
 
+import { useRef, useState } from 'react';
 import { Scanner } from '@yudiel/react-qr-scanner';
-import { secureFetch } from '../api/api';
+import { submitAttendanceCheckIn } from '../api/attendance';
 
 export default function SelfScanner({ onClose }) {
+  const [scannerKey, setScannerKey] = useState(0);
+  const isProcessingRef = useRef(false);
 
   /**
    * Processes the scanned Service ID.
    * Sends the ID to the /api/attendance/self-checkin endpoint.
    */
   const handleScan = async (result) => {
-    if (result && result[0]?.rawValue) {
-      const serviceId = result[0].rawValue;
+    if (isProcessingRef.current || !result || !result[0]?.rawValue) return;
 
-      try {
-        const response = await secureFetch('/api/attendance/self-checkin', {
-          method: 'POST',
-          body: JSON.stringify({ service_id: serviceId })
-        });
+    isProcessingRef.current = true;
+    const serviceId = result[0].rawValue;
 
-        const data = await response.json();
+    try {
+      const { response, data } = await submitAttendanceCheckIn('/api/attendance/self-checkin', {
+        service_id: serviceId,
+        check_in_method: 'SELF_SCAN'
+      });
 
-        if (response.ok) {
-          alert("Attendance logged successfully!");
-          onClose();
-        } else {
-          alert(data.detail || "Check-in failed. Please try again.");
-          onClose();
-        }
-      } catch (err) {
-        console.error("Self-scan error:", err);
-        alert("Network error. Please try again.");
+      if (response.ok) {
+        alert("Attendance logged successfully!");
+        onClose();
+      } else {
+        alert(data.detail || "Check-in failed. Please try again.");
       }
+    } catch (err) {
+      console.error("Self-scan error:", err);
+      alert("Network error. Please try again.");
+    } finally {
+      setScannerKey((key) => key + 1);
+      isProcessingRef.current = false;
     }
   };
 
@@ -45,7 +49,8 @@ export default function SelfScanner({ onClose }) {
       
       <div className="w-full max-w-sm aspect-square overflow-hidden rounded-3xl border-4 border-emerald-500 shadow-2xl">
         <Scanner
-          onResult={handleScan}
+          key={scannerKey}
+          onScan={handleScan}
           onError={(error) => console.error(error)}
           options={{
             scanDelay: 500,

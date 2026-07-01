@@ -1,23 +1,26 @@
-import { useState, useEffect } from 'react';
-import { CalendarPlus, Power, Users, Clock, Play, Calendar, Trash2 } from 'lucide-react';
-import { secureFetch } from '../api/api'; // Added secureFetch import
+import { useEffect, useState, useRef } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
+import { CalendarPlus, Power, Users, Clock, Play, Calendar, Trash2, History, Download, QrCode } from 'lucide-react';
+import { secureFetch } from '../api/api'; 
 
-export default function OverviewTab({ token }) {
+export default function OverviewTab() {
   const [activeService, setActiveService] = useState(null);
-  const [draftServices, setDraftServices] = useState([]); // Removed mock data
+  const [draftServices, setDraftServices] = useState([]);
+  const [recentServices, setRecentServices] = useState([]); // NEW: Bucket for closed services
+  const [qrService, setQrService] = useState(null);
   
   const [newServiceName, setNewServiceName] = useState('');
   const [newServiceDate, setNewServiceDate] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const qrRef = useRef(null);
 
-  // FETCH SERVICES ON MOUNT
   const fetchServices = async () => {
     try {
-      const res = await secureFetch('/api/services');
+      const res = await secureFetch('/api/services/');
       if (res.ok) {
         const data = await res.json();
         
-        // Find the active service and map backend fields to your UI fields
+        // 1. ACTIVE BUCKET
         const active = data.find(s => s.is_active === true);
         if (active) {
           setActiveService({
@@ -25,22 +28,33 @@ export default function OverviewTab({ token }) {
             name: active.title,
             date: active.service_date,
             status: 'active',
-            checkIns: active.attendance_count || 0, // Fallback if backend doesn't send count yet
-            startTime: active.time_started 
-              ? new Date(active.time_started).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-              : 'N/A'
+            checkIns: active.attendance_count || 0,
+            startTime: new Date(active.time_started).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           });
         } else {
           setActiveService(null);
         }
 
-        // Find drafts and map fields
-        const drafts = data.filter(s => s.is_active === false);
+        // 2. DRAFT/PENDING BUCKET (Has NOT started)
+        const drafts = data.filter(s => s.is_active === false && !s.time_started);
         setDraftServices(drafts.map(s => ({
           id: s.id,
           name: s.title,
           date: s.service_date,
           status: 'draft'
+        })));
+
+        // 3. RECENT/CLOSED BUCKET (Has started, but is now closed. Take top 5)
+        const recents = data
+          .filter(s => s.is_active === false && s.time_started)
+          .sort((a, b) => new Date(b.service_date) - new Date(a.service_date))
+          .slice(0, 5); // Limit to last 5
+          
+        setRecentServices(recents.map(s => ({
+          id: s.id,
+          name: s.title,
+          date: s.service_date,
+          checkIns: s.attendance_count || 0
         })));
       }
     } catch (error) {
@@ -49,32 +63,32 @@ export default function OverviewTab({ token }) {
   };
 
   useEffect(() => {
-    fetchServices();
+    const timer = setTimeout(() => {
+      void fetchServices();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const handleCreateDraft = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-
     try {
       const res = await secureFetch('/api/services/create', {
         method: 'POST',
-        body: JSON.stringify({
-          title: newServiceName,
-          service_date: newServiceDate
-        })
+        body: JSON.stringify({ title: newServiceName, service_date: newServiceDate })
       });
-
       if (res.ok) {
+        const createdService = await res.json();
         setNewServiceName('');
         setNewServiceDate('');
-        await fetchServices(); // Refresh the list from the database
+        setQrService(createdService);
+        await fetchServices(); 
       } else {
         const errorData = await res.json();
         alert(errorData.detail || "Failed to create service.");
       }
-    } catch (error) {
-      console.error("Create service error:", error);
+    } catch {
       alert("Network Error");
     } finally {
       setIsLoading(false);
@@ -86,21 +100,12 @@ export default function OverviewTab({ token }) {
       alert("You must end the current active service before starting a new one.");
       return;
     }
-
     setIsLoading(true);
     try {
-      const res = await secureFetch(`/api/services/${serviceId}/activate`, {
-        method: 'PATCH'
-      });
-
-      if (res.ok) {
-        await fetchServices(); // Refresh to update states
-      } else {
-        const errorData = await res.json();
-        alert(errorData.detail || "Failed to activate service.");
-      }
-    } catch (error) {
-      console.error("Activate service error:", error);
+      const res = await secureFetch(`/api/services/${serviceId}/activate`, { method: 'PATCH' });
+      if (res.ok) await fetchServices(); 
+      else alert("Failed to activate service.");
+    } catch {
       alert("Network Error");
     } finally {
       setIsLoading(false);
@@ -109,44 +114,58 @@ export default function OverviewTab({ token }) {
 
   const handleDeleteDraft = async (serviceId) => {
     if (!window.confirm("Are you sure you want to delete this scheduled service?")) return;
-    
     setIsLoading(true);
     try {
-      const res = await secureFetch(`/api/services/${serviceId}`, {
-        method: 'DELETE'
-      });
-
-      if (res.ok) {
-        await fetchServices(); // Refresh the list
-      } else {
-        alert("Failed to delete service.");
+      const res = await secureFetch(`/api/services/${serviceId}`, { method: 'DELETE' });
+      if (res.ok) await fetchServices(); 
+      else {
+        const err = await res.json();
+        alert(err.detail || "Failed to delete service.");
       }
-    } catch (error) {
-      console.error("Delete service error:", error);
+    } catch {
       alert("Network Error");
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleDownloadServiceQr = () => {
+    const svgElement = qrRef.current?.querySelector('svg');
+    if (!svgElement) return;
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const svgData = new XMLSerializer().serializeToString(svgElement);
+    const img = new Image();
+
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+
+      const pngUrl = canvas.toDataURL('image/png');
+      const downloadLink = document.createElement('a');
+      downloadLink.href = pngUrl;
+      downloadLink.download = `HORYC-SERVICE-${qrService?.id || 'qr'}.png`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+    };
+
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+  };
+
   const handleEndService = async () => {
     if (!window.confirm("Are you sure you want to close this service? Ushers will no longer be able to scan QR codes.")) return;
     if (!activeService) return;
-
     setIsLoading(true);
     try {
-      const res = await secureFetch(`/api/services/${activeService.id}/deactivate`, {
-        method: 'PATCH'
-      });
-
-      if (res.ok) {
-        await fetchServices(); // Refresh to reflect closed status
-      } else {
-        const errorData = await res.json();
-        alert(errorData.detail || "Failed to close service.");
-      }
-    } catch (error) {
-      console.error("Deactivate service error:", error);
+      const res = await secureFetch(`/api/services/${activeService.id}/deactivate`, { method: 'PATCH' });
+      if (res.ok) await fetchServices(); 
+      else alert("Failed to close service.");
+    } catch {
       alert("Network Error");
     } finally {
       setIsLoading(false);
@@ -155,6 +174,42 @@ export default function OverviewTab({ token }) {
 
   return (
     <div className="space-y-6">
+
+      {qrService && (
+        <div className="bg-slate-900 text-white rounded-3xl p-6 md:p-8 border border-slate-700 shadow-lg">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div>
+              <div className="flex items-center gap-2 text-emerald-400 mb-2">
+                <QrCode size={18} />
+                <span className="text-sm font-semibold uppercase tracking-wider">Service QR Pass</span>
+              </div>
+              <h3 className="font-display text-2xl font-bold">{qrService.title}</h3>
+              <p className="text-slate-300 text-sm mt-1">Share this QR so members can self-check in for this service.</p>
+            </div>
+
+            <button
+              onClick={handleDownloadServiceQr}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 text-emerald-950 font-bold hover:bg-emerald-400 transition-colors"
+            >
+              <Download size={18} />
+              Download QR
+            </button>
+          </div>
+
+          <div ref={qrRef} className="w-fit bg-white p-4 rounded-2xl">
+            <QRCodeSVG
+              value={String(qrService.id)}
+              size={220}
+              bgColor="#ffffff"
+              fgColor="#0f172a"
+              level="H"
+              includeMargin={false}
+            />
+          </div>
+
+          <p className="mt-4 text-sm text-slate-300 font-mono break-all">{String(qrService.id)}</p>
+        </div>
+      )}
       
       {/* SECTION 1: THE MASTER CONTROL (ACTIVE SERVICE) */}
       <div className={`p-6 md:p-8 rounded-3xl border-2 transition-all duration-500 ${
@@ -192,7 +247,6 @@ export default function OverviewTab({ token }) {
           )}
         </div>
 
-        {/* Live Stats Overlay */}
         {activeService && (
           <div className="grid grid-cols-2 gap-4 mt-8 pt-8 border-t border-emerald-200/60">
             <div className="bg-white/60 backdrop-blur-sm p-4 rounded-2xl flex items-center gap-4">
@@ -220,13 +274,13 @@ export default function OverviewTab({ token }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* SECTION 2: PENDING SERVICES POOL */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col">
           <div className="flex items-center gap-3 mb-6 text-brand-dark">
             <Calendar size={24} className="text-brand-blue" />
             <h3 className="font-display text-lg font-bold">Pending Services</h3>
           </div>
           
-          <div className="space-y-3">
+          <div className="space-y-3 flex-1">
             {draftServices.length === 0 ? (
               <p className="text-slate-500 text-sm py-4 text-center border-2 border-dashed border-slate-100 rounded-xl">No pending services drafted.</p>
             ) : (
@@ -262,10 +316,34 @@ export default function OverviewTab({ token }) {
               ))
             )}
           </div>
+
+          {/* NEW SECTION: RECENT HISTORICAL SERVICES */}
+          {recentServices.length > 0 && (
+            <div className="mt-8 pt-6 border-t border-slate-100">
+               <div className="flex items-center gap-2 mb-4 text-slate-500">
+                <History size={18} />
+                <h4 className="font-bold text-sm uppercase tracking-wider">Recently Closed</h4>
+              </div>
+              <div className="space-y-2">
+                {recentServices.map(service => (
+                  <div key={service.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <div>
+                      <p className="font-bold text-slate-700 text-sm">{service.name}</p>
+                      <p className="text-xs text-slate-400">{new Date(service.date).toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                      <Users size={14} className="text-brand-blue" />
+                      <span className="text-sm font-bold text-slate-700">{service.checkIns}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* SECTION 3: DRAFT NEW SERVICE FORM */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-fit">
           <div className="flex items-center gap-3 mb-6 text-brand-dark">
             <CalendarPlus size={24} className="text-brand-blue" />
             <h3 className="font-display text-lg font-bold">Draft New Service</h3>

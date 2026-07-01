@@ -3,6 +3,7 @@ import { Scanner } from '@yudiel/react-qr-scanner';
 import { UserCheck, CheckCircle2, AlertCircle, Volume2, VolumeX, Keyboard, QrCode, Search, X, Info } from 'lucide-react'; // Added Info
 import { useNavigate, useParams } from 'react-router-dom'; // Added useParams
 import { secureFetch } from '../api/api';
+import { submitAttendanceCheckIn } from '../api/attendance';
 
 export default function UsherScanner() {
   const navigate = useNavigate();
@@ -33,9 +34,11 @@ export default function UsherScanner() {
   const [lastScannedId, setLastScannedId] = useState('');
   const [recentCheckIns, setRecentCheckIns] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
   
   const [soundEnabled, setSoundEnabled] = useState(true); 
   const [inputMode, setInputMode] = useState('scan');
+  const [scannerKey, setScannerKey] = useState(0);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -73,8 +76,8 @@ export default function UsherScanner() {
   // Live Omni-Search Integration
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
+      const resetTimer = setTimeout(() => setSearchResults([]), 0);
+      return () => clearTimeout(resetTimer);
     }
 
     const delayDebounceFn = setTimeout(async () => {
@@ -97,20 +100,18 @@ export default function UsherScanner() {
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery]);
 
-  const processCheckIn = async (qrValue) => {
+  const processCheckIn = async (qrValue, checkInMethod = 'QR_SCAN') => {
     if (isProcessingRef.current || !qrValue) return;
     
     isProcessingRef.current = true;
+    setIsProcessing(true);
     setLastScannedId(qrValue);
 
     try {
-      const response = await secureFetch('/api/attendance/scan', {
-        method: 'POST',
-        // Injected service_id into the payload
-        body: JSON.stringify({ 
-          serial_number: qrValue,
-          service_id: serviceId 
-        })
+      const { response, data } = await submitAttendanceCheckIn('/api/attendance/scan', {
+        serial_number: qrValue,
+        service_id: serviceId,
+        check_in_method: checkInMethod
       });
 
       if (response.ok) {
@@ -129,8 +130,7 @@ export default function UsherScanner() {
         setSearchQuery('');
         setSelectedMember(null);
       } else {
-        const errorData = await response.json();
-        const msg = errorData.detail || "Invalid Check-in";
+        const msg = data?.detail || "Invalid Check-in";
         
         // Detect duplicate check-in from backend response
         if (msg.toLowerCase().includes("already")) {
@@ -151,13 +151,15 @@ export default function UsherScanner() {
         setLastScannedId('');
         setErrorMessage('');
         isProcessingRef.current = false;
+        setIsProcessing(false);
+        setScannerKey((key) => key + 1);
       }, 2500);
     }
   };
 
   const handleScan = (detectedCodes) => {
     if (detectedCodes && detectedCodes.length > 0) {
-      processCheckIn(detectedCodes[0].rawValue);
+      processCheckIn(detectedCodes[0].rawValue, 'QR_SCAN');
     }
   };
 
@@ -231,6 +233,7 @@ export default function UsherScanner() {
             
             {inputMode === 'scan' && (
               <Scanner 
+                key={scannerKey}
                 onScan={handleScan}
                 formats={['qr_code']}
                 sound={false}
@@ -307,8 +310,8 @@ export default function UsherScanner() {
                         Cancel
                       </button>
                       <button 
-                        onClick={() => processCheckIn(selectedMember.serial_number)}
-                        disabled={isProcessingRef.current}
+                        onClick={() => processCheckIn(selectedMember.serial_number, 'MANUAL')}
+                        disabled={isProcessing}
                         className="flex-1 py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-600/20"
                       >
                         Check In

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, Database, QrCode } from 'lucide-react'; // Added QrCode
-import { Users, Settings } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Database, QrCode, Users } from 'lucide-react'; // Added QrCode
+import { Settings } from 'lucide-react';
 
 import ProfileTab from '../components/ProfileTab';
 import DashboardLayout from '../components/DashboardLayout';
 import OverviewTab from '../components/OverviewTab';
 import DirectoryTab from '../components/DirectoryTab';
+import CellGroupTab from '../components/CellGroupTab';
 import AttendanceRegistryTab from '../components/AttendanceRegistryTab';
 import MyQRCodeTab from '../components/MyQRCodeTab'; // Added the tab component
 
@@ -42,6 +43,7 @@ export default function AdminPortal() {
   const menuItems = [
     { id: 'overview', label: 'Command Center', icon: LayoutDashboard },
     { id: 'qr', label: 'My QR Pass', icon: QrCode }, 
+    { id: 'cells', label: 'Cell Groups', icon: Users },
     { id: 'directory', label: 'Youth Directory', icon: BookOpen },
     { id: 'registry', label: 'Attendance Registry', icon: Database },
     { id: 'profile', label: 'Profile Settings', icon: Settings },
@@ -62,10 +64,11 @@ export default function AdminPortal() {
       activeTab={activeTab} 
       setActiveTab={setActiveTab}
     >
-      {activeTab === 'overview' && <OverviewTab token={localStorage.getItem('horyc_token')} />}
+      {activeTab === 'overview' && <OverviewTab />}
       {activeTab === 'qr' && <MyQRCodeTab userData={userData} />} {/* Added rendering logic */}
-      {activeTab === 'directory' && <DirectoryTab token={localStorage.getItem('horyc_token')} />}
-      {activeTab === 'registry' && <AttendanceRegistryTab token={localStorage.getItem('horyc_token')} />}
+      {activeTab === 'cells' && <CellGroupTab />}
+      {activeTab === 'directory' && <DirectoryTab />}
+      {activeTab === 'registry' && <AttendanceRegistryTab />}
       {activeTab === 'profile' && <ProfileTab userData={userData} />}
     </DashboardLayout>
   );

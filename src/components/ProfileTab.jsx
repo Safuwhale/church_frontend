@@ -1,19 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { User, Lock, Save, CheckCircle2, AlertCircle } from 'lucide-react';
+import { secureFetch } from '../api/api';
+
+const buildProfileState = (userData) => ({
+  first_name: userData?.first_name || '',
+  last_name: userData?.last_name || '',
+  phone_number: userData?.phone_number || '',
+  whatsapp_same_as_phone: true,
+  whatsapp_number: userData?.whatsapp_number || '',
+  dob: userData?.dob || '',
+  location_zone: userData?.location_zone || '',
+  contact_person_name: userData?.contact_person_name || '',
+  contact_person_relation: userData?.contact_person_relation || ''
+});
 
 export default function ProfileTab({ userData }) {
-  // Mock initial data - in Phase 4, we will fetch this directly from your database
-  const [profileData, setProfileData] = useState({
-    first_name: userData?.first_name || '',
-    last_name: userData?.last_name || '',
-    phone_number: '',
-    whatsapp_same_as_phone: true,
-    whatsapp_number: '',
-    dob: '',
-    location_zone: '',
-    contact_person_name: '',
-    contact_person_relation: ''
-  });
+  const [profileData, setProfileData] = useState(() => buildProfileState(userData));
 
   const [passwordData, setPasswordData] = useState({
     current_password: '',
@@ -53,21 +55,34 @@ export default function ProfileTab({ userData }) {
     setIsLoading(true);
 
     try {
-      // TODO (Phase 4): Replace with actual PUT /api/users/me fetch request
-      console.log("Saving Profile Data:", profileData);
+      const payload = {
+        ...profileData,
+        whatsapp_number: profileData.whatsapp_same_as_phone ? profileData.phone_number : profileData.whatsapp_number,
+      };
+
       if (passwordData.new_password) {
-        console.log("Updating Password...");
+        payload.new_password = passwordData.new_password;
       }
 
-      // Simulating network delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+      const response = await secureFetch('/api/users/me', {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to update profile.');
+      }
+
+      if (data.first_name) {
+        localStorage.setItem('horyc_name', data.first_name);
+      }
+
       setStatusMsg({ type: 'success', text: 'Profile updated successfully!' });
-      
-      // Clear password fields on success
       setPasswordData({ current_password: '', new_password: '', confirm_new_password: '' });
 
-    } catch (error) {
+    } catch {
       setStatusMsg({ type: 'error', text: 'Failed to update profile. Please try again.' });
     } finally {
       setIsLoading(false);
