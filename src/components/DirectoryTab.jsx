@@ -1,33 +1,46 @@
-import { useState } from 'react';
-import { Search, Shield, User, Phone, ChevronRight } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Search, Shield, User, Phone, RefreshCw } from 'lucide-react';
+import { secureFetch } from '../api/api';
 
-export default function DirectoryTab({ token }) {
-  // Mock data representing what will eventually come from PostgreSQL via FastAPI
-  const [members, setMembers] = useState([
-    { id: 1, firstName: 'Daniel', lastName: 'Okafor', phone: '08011112222', role: 'member', horycId: 'HORYC-045' },
-    { id: 2, firstName: 'Sarah', lastName: 'Ibrahim', phone: '08033334444', role: 'usher', horycId: 'HORYC-012' },
-    { id: 3, firstName: 'Michael', lastName: 'Johnson', phone: '08055556666', role: 'leader', horycId: 'HORYC-008' },
-    { id: 4, firstName: 'Grace', lastName: 'Emmanuel', phone: '08077778888', role: 'member', horycId: 'HORYC-089' },
-  ]);
-  
+export default function DirectoryTab() {
+  const [members, setMembers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  // Filter members based on search input
-  const filteredMembers = members.filter(member => 
-    `${member.firstName} ${member.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.phone.includes(searchTerm) ||
-    member.horycId.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const fetchMembers = async () => {
+    setIsLoading(true);
+    setError('');
+    try {
+      const endpoint = searchTerm.trim()
+        ? `/api/users/directory?q=${encodeURIComponent(searchTerm.trim())}`
+        : '/api/users/directory';
 
-  const handlePromote = (memberId, newRole) => {
-    // TODO: Connect to FastAPI PATCH /api/users/{id}/role
-    console.log(`Promoting user ${memberId} to ${newRole}`);
-    
-    // Simulating frontend state update
-    setMembers(members.map(m => 
-      m.id === memberId ? { ...m, role: newRole } : m
-    ));
+      const response = await secureFetch(endpoint);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to load directory');
+      }
+
+      const data = await response.json();
+      setMembers(data);
+    } catch (err) {
+      console.error('Directory load error:', err);
+      setError(err.message || 'Failed to load directory');
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void fetchMembers();
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const filteredMembers = useMemo(() => members, [members]);
 
   return (
     <div className="space-y-6">
@@ -36,22 +49,39 @@ export default function DirectoryTab({ token }) {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h3 className="font-display text-xl font-bold text-slate-800">Youth Directory</h3>
-          <p className="text-slate-500 text-sm">Manage members, ushers, and leaders.</p>
+          <p className="text-slate-500 text-sm">Manage members, ushers, and leaders from the live backend.</p>
         </div>
 
-        <div className="relative w-full md:w-72">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search size={18} className="text-slate-400" />
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="relative w-full md:w-72">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search size={18} className="text-slate-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search by name, ID, phone, or role..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue transition-all bg-white"
+            />
           </div>
-          <input
-            type="text"
-            placeholder="Search by name, ID, or phone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue transition-all bg-white"
-          />
+
+          <button
+            onClick={fetchMembers}
+            disabled={isLoading}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-60"
+          >
+            <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
         </div>
       </div>
+
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {/* SECTION 2: Data Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -63,7 +93,6 @@ export default function DirectoryTab({ token }) {
                 <th className="px-6 py-4 font-medium">HORYC ID</th>
                 <th className="px-6 py-4 font-medium">Contact</th>
                 <th className="px-6 py-4 font-medium">Role</th>
-                <th className="px-6 py-4 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -74,14 +103,15 @@ export default function DirectoryTab({ token }) {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                        member.role === 'hod' || member.role === 'admin' ? 'bg-emerald-100 text-emerald-700' :
                         member.role === 'leader' ? 'bg-purple-100 text-purple-700' :
                         member.role === 'usher' ? 'bg-blue-100 text-blue-700' :
                         'bg-slate-100 text-slate-600'
                       }`}>
-                        {member.firstName.charAt(0)}{member.lastName.charAt(0)}
+                        {member.first_name.charAt(0)}{member.last_name.charAt(0)}
                       </div>
                       <div>
-                        <p className="font-semibold text-slate-800">{member.firstName} {member.lastName}</p>
+                        <p className="font-semibold text-slate-800">{member.first_name} {member.last_name}</p>
                       </div>
                     </div>
                   </td>
@@ -89,7 +119,7 @@ export default function DirectoryTab({ token }) {
                   {/* ID Column */}
                   <td className="px-6 py-4">
                     <span className="font-mono text-sm text-slate-600 bg-slate-100 px-2 py-1 rounded-md">
-                      {member.horycId}
+                      {member.serial_number}
                     </span>
                   </td>
 
@@ -97,7 +127,7 @@ export default function DirectoryTab({ token }) {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 text-slate-600 text-sm">
                       <Phone size={14} />
-                      {member.phone}
+                      {member.phone_number}
                     </div>
                   </td>
 
@@ -111,28 +141,13 @@ export default function DirectoryTab({ token }) {
                     </div>
                   </td>
 
-                  {/* Actions Column */}
-                  <td className="px-6 py-4 text-right">
-                    {member.role === 'member' && (
-                      <button 
-                        onClick={() => handlePromote(member.id, 'leader')}
-                        className="text-sm font-medium text-brand-blue hover:text-blue-800 transition-colors flex items-center justify-end gap-1 ml-auto"
-                      >
-                        Make Leader <ChevronRight size={16} />
-                      </button>
-                    )}
-                    {member.role !== 'member' && (
-                      <span className="text-sm text-slate-400 italic">No action needed</span>
-                    )}
-                  </td>
-
                 </tr>
               ))}
               
               {filteredMembers.length === 0 && (
                 <tr>
-                  <td colSpan="5" className="px-6 py-10 text-center text-slate-500">
-                    No members found matching your search.
+                  <td colSpan="4" className="px-6 py-10 text-center text-slate-500">
+                                  {isLoading ? 'Loading directory...' : 'No members found matching your search.'}
                   </td>
                 </tr>
               )}
