@@ -5,7 +5,6 @@
  */
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ;
-console.log("Live API Base:", API_BASE);
 /**
  * Secure fetch wrapper.
  * Automatically injects the Bearer token and attempts token refresh on 401 errors.
