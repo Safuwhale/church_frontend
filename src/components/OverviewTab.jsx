@@ -21,6 +21,12 @@ export default function OverviewTab() {
       if (res.ok) {
         const data = await res.json();
         
+        // THE FIX: Ensure data is actually an array before running array methods
+        if (!Array.isArray(data)) {
+          console.warn("Backend returned non-array data:", data);
+          return; // Stop execution safely instead of crashing
+        }
+
         // 1. ACTIVE BUCKET
         const active = data.find(s => s.is_active === true);
         if (active) {
@@ -36,7 +42,7 @@ export default function OverviewTab() {
           setActiveService(null);
         }
 
-        // 2. DRAFT/PENDING BUCKET (Has NOT started)
+        // 2. DRAFT/PENDING BUCKET
         const drafts = data.filter(s => s.is_active === false && !s.time_started);
         setDraftServices(drafts.map(s => ({
           id: s.id,
@@ -45,11 +51,11 @@ export default function OverviewTab() {
           status: 'draft'
         })));
 
-        // 3. RECENT/CLOSED BUCKET (Has started, but is now closed. Take top 5)
+        // 3. RECENT/CLOSED BUCKET
         const recents = data
           .filter(s => s.is_active === false && s.time_started)
           .sort((a, b) => new Date(b.time_closed || b.time_started || b.service_date) - new Date(a.time_closed || a.time_started || a.service_date))
-          .slice(0, 5); // Limit to last 5
+          .slice(0, 5); 
           
         setRecentServices(recents.map(s => ({
           id: s.id,
