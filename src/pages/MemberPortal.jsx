@@ -9,6 +9,8 @@ import { secureFetch } from '../api/api';
 import DashboardLayout from '../components/DashboardLayout';
 import MyQRCodeTab from '../components/MyQRCodeTab';
 import ProfileTab from '../components/ProfileTab';
+import MemberCellGroupTab from '../components/MemberCellGroupTab';
+import { QrCode, Users, Settings } from 'lucide-react';
 
 export default function MemberPortal() {
   const [userData, setUserData] = useState(null);
@@ -51,8 +53,9 @@ export default function MemberPortal() {
 
   // Menu configuration for the portal navigation
   const menuItems = [
-    { id: 'qr', label: 'My QR Pass', icon: 'QrCode' },
-    { id: 'profile', label: 'Profile Settings', icon: 'Settings' },
+    { id: 'qr', label: 'My QR Pass', icon: QrCode },
+    { id: 'cell', label: 'My Cell Group', icon: Users },
+    { id: 'profile', label: 'Profile Settings', icon: Settings },
   ];
 
   return (
@@ -65,6 +68,10 @@ export default function MemberPortal() {
       <div className="p-6">
         {activeTab === 'qr' && userData && (
           <MyQRCodeTab userData={userData} />
+        )}
+
+        {activeTab === 'cell' && userData && (
+          <MemberCellGroupTab userData={userData} />
         )}
         
         {activeTab === 'profile' && userData && (

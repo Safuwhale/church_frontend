@@ -44,6 +44,7 @@ export default function UsherScanner() {
   const [searchResults, setSearchResults] = useState([]);
   const [selectedMember, setSelectedMember] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [recentServiceScans, setRecentServiceScans] = useState([]);
   
   const soundEnabledRef = useRef(true); 
   const isProcessingRef = useRef(false);
@@ -99,6 +100,24 @@ export default function UsherScanner() {
 
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery]);
+
+  useEffect(() => {
+    const loadRecentScans = async () => {
+      if (!serviceId) return;
+
+      try {
+        const response = await secureFetch(`/api/attendance/services/${serviceId}/my-scans`);
+        if (response.ok) {
+          const data = await response.json();
+          setRecentServiceScans(data.scans || []);
+        }
+      } catch (error) {
+        console.error('Failed to load recent scans:', error);
+      }
+    };
+
+    void loadRecentScans();
+  }, [serviceId]);
 
   const processCheckIn = async (qrValue, checkInMethod = 'QR_SCAN') => {
     if (isProcessingRef.current || !qrValue) return;
@@ -192,8 +211,11 @@ export default function UsherScanner() {
 
           <button 
             onClick={() => {
-              localStorage.clear();
-              navigate('/login');
+              localStorage.removeItem('horyc_token');
+              localStorage.removeItem('horyc_role');
+              localStorage.removeItem('horyc_name');
+              localStorage.removeItem('horyc_id');
+              navigate('/usher-dashboard', { replace: true });
             }}
             className="p-2 md:px-4 md:py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl transition-colors flex items-center gap-2 text-sm font-medium"
           >
@@ -289,6 +311,26 @@ export default function UsherScanner() {
                           </span>
                         </button>
                       ))}
+                    </div>
+
+                    <div className="mt-5 border-t border-slate-800 pt-4">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Recent scans for this service</h4>
+                      <div className="space-y-2 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+                        {recentServiceScans.map((scan) => (
+                          <div key={scan.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-800/60 px-3 py-2 text-sm">
+                            <div>
+                              <p className="font-medium text-white">{scan.first_name} {scan.last_name}</p>
+                              <p className="text-xs text-slate-400 font-mono">{scan.serial_number}</p>
+                            </div>
+                            <span className="text-xs text-slate-400">
+                              {new Date(scan.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        ))}
+                        {recentServiceScans.length === 0 && (
+                          <p className="text-sm text-slate-500">No scans recorded for this service yet.</p>
+                        )}
+                      </div>
                     </div>
                   </>
                 ) : (

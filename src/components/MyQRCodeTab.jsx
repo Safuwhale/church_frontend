@@ -7,6 +7,7 @@ import { useState, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Download, Camera } from 'lucide-react';
 import SelfScanner from './SelfScanner'; // Importing your consistent scanner component
+import { downloadQrAsPng } from '../utils/qrDownload';
 
 export default function MyQRCodeTab({ userData }) {
   const qrRef = useRef(null);
@@ -24,31 +25,14 @@ export default function MyQRCodeTab({ userData }) {
    * High-quality PNG download logic.
    */
   const handleDownload = () => {
-    const svgElement = qrRef.current.querySelector("svg");
+    const svgElement = qrRef.current.querySelector('svg');
     if (!svgElement) return;
 
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    const svgData = new XMLSerializer().serializeToString(svgElement);
-    const img = new Image();
-
-    img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
-      
-      const pngUrl = canvas.toDataURL("image/png");
-      const downloadLink = document.createElement("a");
-      downloadLink.href = pngUrl;
-      downloadLink.download = `HORYC-PASS-${qrValue}.png`;
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-    };
-
-    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
+    void downloadQrAsPng(svgElement, `HORYC-PASS-${qrValue}.png`, {
+      width: 1600,
+      height: 1600,
+      padding: 0.18,
+    });
   };
 
   return (
