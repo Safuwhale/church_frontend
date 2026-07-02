@@ -41,7 +41,8 @@ export default function Register() {
         payload.whatsapp_number = null; 
       }
 
-      const response = await fetch('http://localhost:8000/api/users/onboard', {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL;   
+      const response = await fetch(`${API_BASE}/api/users/onboard`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
