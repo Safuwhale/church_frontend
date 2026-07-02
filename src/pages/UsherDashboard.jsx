@@ -25,8 +25,7 @@ export default function UsherDashboard() {
         const res = await secureFetch('/api/services');
         if (res.ok) {
           const data = await res.json();
-          // Sort to show active services at the top
-          const sorted = data.sort((a, b) => (b.is_active === a.is_active) ? 0 : b.is_active ? 1 : -1);
+          const sorted = data.filter((service) => service.is_active || !service.time_started);
           setServices(sorted);
         }
       } catch (err) {
@@ -47,11 +46,11 @@ export default function UsherDashboard() {
           <p className="text-slate-400 mt-1">Select an active service to begin scanning</p>
         </div>
         <button 
-          onClick={() => { localStorage.clear(); navigate('/login'); }}
+          onClick={() => { localStorage.removeItem('horyc_token'); localStorage.removeItem('horyc_role'); localStorage.removeItem('horyc_name'); localStorage.removeItem('horyc_id'); navigate('/usher-dashboard', { replace: true }); window.location.reload(); }}
           className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-400 rounded-xl hover:bg-red-500/20 transition-colors"
         >
           <LogOut size={18} />
-          Logout
+          End Shift
         </button>
       </header>
 
@@ -102,7 +101,6 @@ export default function UsherDashboard() {
                 </div>
 
                 <button
-                  // THIS IS WHERE THE NAVIGATION HAPPENS
                   onClick={() => navigate(`/scanner/${service.id}`)}
                   disabled={!service.is_active}
                   className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all ${
@@ -112,7 +110,7 @@ export default function UsherDashboard() {
                   }`}
                 >
                   <QrCode size={18} />
-                  {service.is_active ? 'Open Scanner' : 'Service Closed'}
+                  {service.is_active ? 'Open Scanner' : 'Pending Service'}
                 </button>
               </div>
             ))}

@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { CalendarPlus, Power, Users, Clock, Play, Calendar, Trash2, History, Download, QrCode } from 'lucide-react';
+import { CalendarPlus, Power, Users, Clock, Play, Calendar, Trash2, History, QrCode } from 'lucide-react';
 import { secureFetch } from '../api/api'; 
+import { downloadQrAsA4Jpg } from '../utils/qrDownload';
 
 export default function OverviewTab() {
   const [activeService, setActiveService] = useState(null);
@@ -47,7 +48,7 @@ export default function OverviewTab() {
         // 3. RECENT/CLOSED BUCKET (Has started, but is now closed. Take top 5)
         const recents = data
           .filter(s => s.is_active === false && s.time_started)
-          .sort((a, b) => new Date(b.service_date) - new Date(a.service_date))
+          .sort((a, b) => new Date(b.time_closed || b.time_started || b.service_date) - new Date(a.time_closed || a.time_started || a.service_date))
           .slice(0, 5); // Limit to last 5
           
         setRecentServices(recents.map(s => ({
@@ -133,28 +134,11 @@ export default function OverviewTab() {
     const svgElement = qrRef.current?.querySelector('svg');
     if (!svgElement) return;
 
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const svgData = new XMLSerializer().serializeToString(svgElement);
-    const img = new Image();
-
-    img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
-
-      const pngUrl = canvas.toDataURL('image/png');
-      const downloadLink = document.createElement('a');
-      downloadLink.href = pngUrl;
-      downloadLink.download = `HORYC-SERVICE-${qrService?.id || 'qr'}.png`;
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-    };
-
-    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    void downloadQrAsA4Jpg(svgElement, `HORYC-SERVICE-${qrService?.id || 'qr'}.jpg`, {
+      width: 2480,
+      height: 3508,
+      padding: 0.38,
+    });
   };
 
   const handleEndService = async () => {
@@ -189,10 +173,11 @@ export default function OverviewTab() {
 
             <button
               onClick={handleDownloadServiceQr}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 text-emerald-950 font-bold hover:bg-emerald-400 transition-colors"
+              className="flex items-center justify-center p-2.5 rounded-xl bg-emerald-500 text-emerald-950 font-bold hover:bg-emerald-400 transition-colors"
+              aria-label="Download service QR"
+              title="Download service QR"
             >
-              <Download size={18} />
-              Download QR
+              <QrCode size={18} />
             </button>
           </div>
 
@@ -207,7 +192,7 @@ export default function OverviewTab() {
             />
           </div>
 
-          <p className="mt-4 text-sm text-slate-300 font-mono break-all">{String(qrService.id)}</p>
+            <p className="mt-4 text-sm text-slate-300 font-mono break-all">{String(qrService.id)}</p>
         </div>
       )}
       
@@ -291,6 +276,13 @@ export default function OverviewTab() {
                     <p className="text-sm text-slate-500">{new Date(service.date).toLocaleDateString()}</p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setQrService({ id: service.id, title: service.name })}
+                      className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                      title="Show QR code"
+                    >
+                      <QrCode size={18} />
+                    </button>
                     <button 
                       onClick={() => handleDeleteDraft(service.id)}
                       disabled={isLoading}
