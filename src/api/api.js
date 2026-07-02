@@ -4,7 +4,7 @@
  * Features automatic token refresh and centralized error handling.
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_BASE_URL ;
 console.log("Live API Base:", API_BASE); // <-- Add this single line
 /**
  * Secure fetch wrapper.
