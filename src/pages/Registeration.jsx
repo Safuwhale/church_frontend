@@ -35,13 +35,17 @@ export default function Register() {
     setIsLoading(true);
 
     try {
-      // Prepare payload: if whatsapp is same as phone, we can send null or the phone number
       const payload = { ...formData };
+      
+      // Format data correctly
       if (payload.whatsapp_same_as_phone) {
         payload.whatsapp_number = null; 
       }
+      
+      // To FIX: Add whatapp_same_as_phone to the dabase model
+      delete payload.whatsapp_same_as_phone;
 
-      const API_BASE = import.meta.env.VITE_API_BASE_URL;   
+      const API_BASE = import.meta.env.VITE_API_BASE_URL;
       const response = await fetch(`${API_BASE}/api/users/onboard`, {
         method: 'POST',
         headers: {
@@ -53,11 +57,15 @@ export default function Register() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.detail || 'Registration failed. Please check your inputs.');
+        // Safely parse FastAPI's array of validation errors so it doesn't return [object Object]
+        const errorMsg = Array.isArray(data.detail) 
+          ? data.detail.map(err => err.msg).join(', ') 
+          : data.detail;
+          
+        throw new Error(errorMsg || 'Registration failed. Please check your inputs.');
       }
 
-      // Success! We save the returned user object (which contains the new serial_number)
-      // to display on the success screen.
+      // Success!
       setRegisteredUser(data);
 
     } catch (err) {
@@ -68,8 +76,12 @@ export default function Register() {
   };
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(registeredUser.serial_number);
-    alert('Copied to clipboard!');
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(registeredUser.serial_number);
+      alert('Copied to clipboard!');
+    } else {
+      alert('Clipboard not available on this browser. Please select and copy your ID manually.');
+    }
   };
 
   // ==========================================
@@ -87,7 +99,7 @@ export default function Register() {
           <p className="text-slate-500 mb-8">Welcome to HORYC, {registeredUser.first_name}. Your profile has been successfully created.</p>
 
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 mb-8">
-            <p className="text-sm font-medium text-slate-500 mb-2 uppercase tracking-wider">Your Login Password / ID</p>
+            <p className="text-sm font-medium text-slate-500 mb-2 uppercase tracking-wider">Your Member ID/Password</p>
             <div className="flex items-center justify-center gap-3">
               <span className="font-mono text-3xl font-bold text-brand-blue tracking-wider">
                 {registeredUser.serial_number}
@@ -97,7 +109,7 @@ export default function Register() {
               </button>
             </div>
             <p className="text-xs text-red-500 font-medium mt-4 bg-red-50 p-2 rounded-lg">
-              ⚠️ Please copy or screenshot this ID. You will use this as your password for your first login!
+              Please copy or screenshot this ID. It is your default Password!
             </p>
           </div>
 
@@ -123,8 +135,8 @@ export default function Register() {
           <div className="bg-emerald-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-emerald-600">
             <UserPlus size={32} />
           </div>
-          <h1 className="font-display text-2xl text-brand-dark font-bold">Join HORYC</h1>
-          <p className="text-slate-500 text-sm mt-2">Fill in your details to generate your QR Pass</p>
+          <h1 className="font-display text-2xl text-brand-dark font-bold">House of Refuge Youth Church</h1>
+          <p className="text-slate-500 text-sm mt-2">Fill in your details</p>
         </div>
 
         {error && (

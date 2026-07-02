@@ -17,7 +17,7 @@ export default function OverviewTab() {
 
   const fetchServices = async () => {
     try {
-      const res = await secureFetch('/api/services/');
+      const res = await secureFetch('/api/services');
       if (res.ok) {
         const data = await res.json();
         
