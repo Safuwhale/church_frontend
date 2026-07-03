@@ -47,9 +47,9 @@ export default function MyQRCodeTab({ userData }) {
         </div>
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <h3 className="font-display text-2xl font-bold mb-2">At the Venue?</h3>
+            <h3 className="font-display text-2xl font-bold mb-2">Scan Service QR code</h3>
             <p className="text-slate-300 max-w-md text-sm leading-relaxed">
-              Skip the line. Tap the button below to open your camera and scan the main church poster to instantly check yourself in.
+              Skip the line. Tap the green button to open your camera and scan the service qr code to instantly check yourself in.
             </p>
           </div>
           <button 
@@ -57,7 +57,7 @@ export default function MyQRCodeTab({ userData }) {
             className="flex items-center justify-center gap-3 px-8 py-4 bg-emerald-500 text-emerald-950 rounded-xl font-bold hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
           >
             <Camera size={22} />
-            Scan Venue Poster
+            Scan 
           </button>
         </div>
       </div>
@@ -74,7 +74,7 @@ export default function MyQRCodeTab({ userData }) {
           </div>
 
           <h2 className="font-display text-2xl font-bold text-slate-800 mb-1">{memberName}</h2>
-          <p className="text-slate-500 mb-8 font-medium">HORYC Youth Member</p>
+          <p className="text-slate-500 mb-8 font-medium">HORYC Member</p>
 
           <div ref={qrRef} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6">
             <QRCodeSVG 
@@ -96,7 +96,7 @@ export default function MyQRCodeTab({ userData }) {
             className="flex items-center justify-center gap-2 w-full py-3.5 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 transition-colors"
           >
             <Download size={18} />
-            Save QR Pass
+            Save QR Code
           </button>
         </div>
       </div>

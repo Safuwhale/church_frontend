@@ -48,7 +48,7 @@ export default function DirectoryTab() {
       {/* SECTION 1: Search and Filter Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h3 className="font-display text-xl font-bold text-slate-800">Youth Directory</h3>
+          <h3 className="font-display text-xl font-bold text-slate-800">Members Directory</h3>
           <p className="text-slate-500 text-sm">Manage members, ushers, and leaders from the live backend.</p>
         </div>
 

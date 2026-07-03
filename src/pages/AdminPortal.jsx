@@ -42,9 +42,9 @@ export default function AdminPortal() {
   // Inserted the QR Pass into the Admin menu
   const menuItems = [
     { id: 'overview', label: 'Command Center', icon: LayoutDashboard },
-    { id: 'qr', label: 'My QR Pass', icon: QrCode }, 
+    { id: 'qr', label: 'My QR', icon: QrCode }, 
     { id: 'cells', label: 'Cell Groups', icon: Users },
-    { id: 'directory', label: 'Youth Directory', icon: BookOpen },
+    { id: 'directory', label: 'Members Directory', icon: BookOpen },
     { id: 'registry', label: 'Attendance Registry', icon: Database },
     { id: 'profile', label: 'Profile Settings', icon: Settings },
   ];

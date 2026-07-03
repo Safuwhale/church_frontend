@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { User, Lock, Save, CheckCircle2, AlertCircle, IdCard } from 'lucide-react';
+import { User, Lock, Save, CheckCircle2, AlertCircle, IdCard, Eye, EyeOff } from 'lucide-react';
 import { secureFetch } from '../api/api';
 
 const buildProfileState = (userData) => ({
@@ -21,6 +21,10 @@ export default function ProfileTab({ userData }) {
     new_password: '',
     confirm_new_password: ''
   });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
@@ -218,20 +222,73 @@ export default function ProfileTab({ userData }) {
             <h3 className="font-bold text-lg text-slate-800">Password</h3>
           </div>
 
-          <p className="text-sm text-slate-500 mb-6">Submit this section separately to update your password.</p>
+          <p className="text-sm text-slate-500 mb-6">Update your password.</p>
 
           <div className="space-y-4 max-w-md">
+            {/* CURRENT PASSWORD */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Current Password</label>
-              <input type="password" name="current_password" value={passwordData.current_password} onChange={handlePasswordChange} placeholder="••••••••" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+              <div className="relative">
+                <input 
+                  type={showCurrentPassword ? "text" : "password"} 
+                  name="current_password" 
+                  value={passwordData.current_password} 
+                  onChange={handlePasswordChange} 
+                  placeholder="••••••••" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent transition-all bg-slate-50 focus:bg-white pr-12" 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-blue transition-colors"
+                >
+                  {showCurrentPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
+
+            {/* NEW PASSWORD */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">New Password</label>
-              <input type="password" name="new_password" value={passwordData.new_password} onChange={handlePasswordChange} placeholder="••••••••" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+              <div className="relative">
+                <input 
+                  type={showNewPassword ? "text" : "password"} 
+                  name="new_password" 
+                  value={passwordData.new_password} 
+                  onChange={handlePasswordChange} 
+                  placeholder="••••••••" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent transition-all bg-slate-50 focus:bg-white pr-12" 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-blue transition-colors"
+                >
+                  {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
+
+            {/* CONFIRM NEW PASSWORD */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Confirm New Password</label>
-              <input type="password" name="confirm_new_password" value={passwordData.confirm_new_password} onChange={handlePasswordChange} placeholder="••••••••" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+              <div className="relative">
+                <input 
+                  type={showConfirmPassword ? "text" : "password"} 
+                  name="confirm_new_password" 
+                  value={passwordData.confirm_new_password} 
+                  onChange={handlePasswordChange} 
+                  placeholder="••••••••" 
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent transition-all bg-slate-50 focus:bg-white pr-12" 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-blue transition-colors"
+                >
+                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
           </div>
 

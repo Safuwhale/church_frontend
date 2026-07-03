@@ -377,7 +377,7 @@ export default function CellGroupTab() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h4 className="font-display font-bold text-slate-800">Cell Members</h4>
-                <p className="text-sm text-slate-500">Click a cell group to view everyone inside it.</p>
+                <p className="text-sm text-slate-500">Click a cell group to view it's members.</p>
               </div>
               <span className="text-sm font-medium text-slate-500">{cellMembers.length} members</span>
             </div>

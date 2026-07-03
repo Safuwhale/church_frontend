@@ -45,7 +45,7 @@ export default function SelfScanner({ onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
-      <h2 className="text-white font-bold mb-6">Scan Venue Poster</h2>
+      <h2 className="text-white font-bold mb-6">Scan Service QR</h2>
       
       <div className="w-full max-w-sm aspect-square overflow-hidden rounded-3xl border-4 border-emerald-500 shadow-2xl">
         <Scanner

@@ -120,7 +120,7 @@ export default function AttendanceRegistryTab() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h3 className="font-display text-xl font-bold text-slate-800">Attendance Registry</h3>
-          <p className="text-slate-500 text-sm">Track service attendance from the live backend.</p>
+          <p className="text-slate-500 text-sm">Track service attendance.</p>
         </div>
 
         <div className="flex items-center gap-3">

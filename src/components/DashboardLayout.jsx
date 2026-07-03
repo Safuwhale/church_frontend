@@ -50,9 +50,9 @@ export default function DashboardLayout({ userData, menuItems, activeTab, setAct
             <span className="text-xs font-mono bg-brand-blue/20 text-brand-light px-2 py-1 rounded-md border border-brand-blue/30">
               {userData.serial_number}
             </span>
-            <span className="text-xs font-bold uppercase tracking-wider bg-slate-700 text-slate-300 px-2 py-1 rounded-md border border-slate-600">
+           {/*} <span className="text-xs font-bold uppercase tracking-wider bg-slate-700 text-slate-300 px-2 py-1 rounded-md border border-slate-600">
               {userData.role}
-            </span>
+            </span>*/}
           </div>
         </div>
 
