@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { secureFetch } from '../api/api';
 import { BookOpen, Download, Calendar, Users, ArrowUpRight, RefreshCw, X, Trash2, Search } from 'lucide-react';
+import AttendanceDots from './AttendanceDots'; // Ensure this is imported!
 
 export default function AttendanceRegistryTab() {
   const [services, setServices] = useState([]);
@@ -8,7 +9,9 @@ export default function AttendanceRegistryTab() {
   const [selectedService, setSelectedService] = useState(null);
   const [selectedServiceDetail, setSelectedServiceDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  
   const [attendeeSearch, setAttendeeSearch] = useState('');
+  const [viewMode, setViewMode] = useState('attendees'); // Toggle state: 'attendees' | 'absentees'
 
   const fetchServices = async () => {
     setIsLoading(true);
@@ -33,6 +36,7 @@ export default function AttendanceRegistryTab() {
 
   const fetchServiceDetail = async (serviceId) => {
     setDetailLoading(true);
+    setViewMode('attendees'); // Reset toggle when opening a new service
     try {
       const response = await secureFetch(`/api/attendance/services/${serviceId}`);
       if (!response.ok) {
@@ -82,13 +86,20 @@ export default function AttendanceRegistryTab() {
 
   const totalCheckIns = services.reduce((sum, service) => sum + (service.attendance_count || 0), 0);
   const averageAttendance = services.length ? Math.round(totalCheckIns / services.length) : 0;
-  const filteredAttendees = (selectedServiceDetail?.attendees || []).filter((attendee) => {
+  
+  // Search Filters for both lists
+  const filterList = (list) => {
     const query = attendeeSearch.trim().toLowerCase();
-    if (!query) return true;
-    return [attendee.first_name, attendee.last_name, attendee.serial_number, attendee.phone_number, attendee.check_in_method]
-      .filter(Boolean)
-      .some((value) => String(value).toLowerCase().includes(query));
-  });
+    if (!query) return list || [];
+    return (list || []).filter((person) => 
+      [person.first_name, person.last_name, person.serial_number, person.phone_number]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query))
+    );
+  };
+
+  const filteredAttendees = filterList(selectedServiceDetail?.attendees);
+  const filteredAbsentees = filterList(selectedServiceDetail?.absentees);
 
   const handleDeleteService = async (service) => {
     if (!window.confirm(`Delete ${service.title}? This cannot be undone.`)) return;
@@ -239,6 +250,7 @@ export default function AttendanceRegistryTab() {
         </div>
       </div>
 
+      {/* SERVICE DETAILS MODAL */}
       {selectedService && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl bg-white shadow-2xl flex flex-col">
@@ -266,6 +278,7 @@ export default function AttendanceRegistryTab() {
             </div>
 
             <div className="p-6 overflow-y-auto">
+              {/* TOP STATS CARDS */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
                   <p className="text-xs uppercase tracking-wider text-slate-400 font-semibold">Status</p>
@@ -285,9 +298,27 @@ export default function AttendanceRegistryTab() {
                 </div>
               </div>
 
+              {/* TABLE CONTAINER */}
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <h4 className="font-semibold text-slate-700">Attendees</h4>
+                <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  
+                  {/* TOGGLE SWITCH */}
+                  <div className="flex p-1 bg-slate-200/60 rounded-xl">
+                    <button 
+                      onClick={() => setViewMode('attendees')}
+                      className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${viewMode === 'attendees' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      Attendees ({selectedServiceDetail?.attendees?.length || 0})
+                    </button>
+                    <button 
+                      onClick={() => setViewMode('absentees')}
+                      className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${viewMode === 'absentees' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      Absentees ({selectedServiceDetail?.absentees?.length || 0})
+                    </button>
+                  </div>
+
+                  {/* SEARCH & EXPORT */}
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="relative">
                       <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -306,34 +337,66 @@ export default function AttendanceRegistryTab() {
                       <Download size={16} />
                       Export CSV
                     </button>
-                    <span className="text-sm text-slate-500">{detailLoading ? 'Loading...' : `${filteredAttendees.length} people`}</span>
                   </div>
                 </div>
 
+                {/* DYNAMIC TABLE */}
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                  <table className="w-full text-left border-collapse whitespace-nowrap min-w-[600px]">
                     <thead>
                       <tr className="border-b border-slate-100 text-slate-400 text-sm">
                         <th className="px-5 py-3 font-medium">Name</th>
                         <th className="px-5 py-3 font-medium">Serial</th>
                         <th className="px-5 py-3 font-medium">Phone</th>
-                        <th className="px-5 py-3 font-medium">Check-in Time</th>
-                        <th className="px-5 py-3 font-medium">Method</th>
+                        
+                        {viewMode === 'attendees' ? (
+                          <>
+                            <th className="px-5 py-3 font-medium">Check-in Time</th>
+                            <th className="px-5 py-3 font-medium">Method</th>
+                          </>
+                        ) : (
+                          <>
+                            <th className="px-5 py-3 font-medium">Location</th>
+                            <th className="px-5 py-3 font-medium text-right">Attendance Streak</th>
+                          </>
+                        )}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredAttendees.map((attendee) => (
-                        <tr key={attendee.id}>
-                          <td className="px-5 py-4 font-medium text-slate-800">{attendee.first_name} {attendee.last_name}</td>
-                          <td className="px-5 py-4 font-mono text-sm text-slate-600">{attendee.serial_number}</td>
-                          <td className="px-5 py-4 text-sm text-slate-600">{attendee.phone_number}</td>
-                          <td className="px-5 py-4 text-sm text-slate-600">{new Date(attendee.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                          <td className="px-5 py-4 text-sm text-slate-600">{attendee.check_in_method}</td>
+                      
+                      {/* ATTENDEES VIEW */}
+                      {viewMode === 'attendees' && filteredAttendees.map((person) => (
+                        <tr key={person.id} className="hover:bg-slate-50/50">
+                          <td className="px-5 py-4 font-bold text-slate-800">{person.first_name} {person.last_name}</td>
+                          <td className="px-5 py-4 font-mono text-xs font-bold text-brand-blue bg-brand-light px-2 rounded w-max inline-block mt-3">{person.serial_number}</td>
+                          <td className="px-5 py-4 text-sm text-slate-600 font-medium">{person.phone_number}</td>
+                          <td className="px-5 py-4 text-sm text-slate-600">{new Date(person.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                          <td className="px-5 py-4 text-sm text-slate-600">{person.check_in_method}</td>
                         </tr>
                       ))}
-                      {!detailLoading && filteredAttendees.length === 0 && (
+
+                      {/* ABSENTEES VIEW */}
+                      {viewMode === 'absentees' && filteredAbsentees.map((person) => (
+                        <tr key={person.id} className="hover:bg-slate-50/50">
+                          <td className="px-5 py-4 font-bold text-slate-800">{person.first_name} {person.last_name}</td>
+                          <td className="px-5 py-4 font-mono text-xs font-bold text-brand-blue bg-brand-light px-2 rounded w-max inline-block mt-3">{person.serial_number}</td>
+                          <td className="px-5 py-4 text-sm text-slate-600 font-medium">{person.phone_number}</td>
+                          <td className="px-5 py-4 text-sm text-slate-600">{person.location_zone || 'N/A'}</td>
+                          <td className="px-5 py-4 flex justify-end items-center">
+                            <AttendanceDots history={person.attendance_history || []} />
+                          </td>
+                        </tr>
+                      ))}
+
+                      {/* EMPTY STATES */}
+                      {!detailLoading && viewMode === 'attendees' && filteredAttendees.length === 0 && (
                         <tr>
-                          <td colSpan="5" className="px-5 py-10 text-center text-slate-500">No members attended this service yet.</td>
+                          <td colSpan="5" className="px-5 py-10 text-center text-slate-500">No members match your search in the attendee list.</td>
+                        </tr>
+                      )}
+                      {!detailLoading && viewMode === 'absentees' && filteredAbsentees.length === 0 && (
+                        <tr>
+                          <td colSpan="5" className="px-5 py-10 text-center text-slate-500">No absentees found for this service.</td>
                         </tr>
                       )}
                     </tbody>
@@ -344,7 +407,6 @@ export default function AttendanceRegistryTab() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
