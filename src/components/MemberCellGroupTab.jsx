@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { secureFetch } from '../api/api';
 import { Users, Phone, MapPin, Shield } from 'lucide-react';
+import AttendanceDots from './AttendanceDots';
 
 export default function MemberCellGroupTab() {
   const [data, setData] = useState(null);
@@ -32,6 +33,7 @@ export default function MemberCellGroupTab() {
 
   return (
     <div className="space-y-6">
+      {/* HEADER SECTION - Unchanged */}
       <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-6 md:p-8">
         <div className="flex items-center gap-3 text-emerald-300 mb-3">
           <Shield size={18} />
@@ -51,22 +53,32 @@ export default function MemberCellGroupTab() {
         </div>
       </div>
 
+      {/* MEMBER LIST SECTION - Updated with AttendanceDots */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
           <h4 className="font-semibold text-slate-700">Fellow Cell Members</h4>
         </div>
         <div className="divide-y divide-slate-100">
           {(data.members || []).map((member) => (
-            <div key={member.id} className="px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-              <div>
-                <p className="font-semibold text-slate-800">{member.first_name} {member.last_name}</p>
-                <p className="text-sm text-slate-500">{member.role}</p>
+            <div key={member.id} className="px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              
+              {/* Member Details */}
+              <div className="flex-1">
+                <p className="font-semibold text-slate-800 text-lg">{member.first_name} {member.last_name}</p>
+                <p className="text-sm text-slate-500 mb-2">{member.role}</p>
+                
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+                  <span className="inline-flex items-center gap-1.5"><Phone size={13} className="text-slate-400"/> {member.phone_number}</span>
+                  <span className="inline-flex items-center gap-1.5"><MapPin size={13} className="text-slate-400"/> {member.location_zone || 'N/A'}</span>
+                  <span className="inline-flex items-center gap-1.5"><Users size={13} className="text-slate-400"/> {member.serial_number}</span>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-4 text-sm text-slate-600">
-                <span className="inline-flex items-center gap-2"><Phone size={14} /> {member.phone_number}</span>
-                <span className="inline-flex items-center gap-2"><MapPin size={14} /> {member.location_zone || 'N/A'}</span>
-                <span className="inline-flex items-center gap-2"><Users size={14} /> {member.serial_number}</span>
+
+              {/* Attendance Widget */}
+              <div className="sm:text-right bg-slate-50 sm:bg-transparent p-3 sm:p-0 rounded-xl border border-slate-100 sm:border-none">
+                <AttendanceDots history={member.attendance_history || []} />
               </div>
+
             </div>
           ))}
         </div>
