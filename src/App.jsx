@@ -8,6 +8,7 @@ import MemberPortal from './pages/MemberPortal';
 import AdminPortal from './pages/AdminPortal';
 import UsherDashboard from './pages/UsherDashboard';
 import Scanner from './pages/Scanner'; 
+import ClaimProfile from './pages/ClaimProfile';
 
 function ProtectedRoute({ children, roles }) {
   const token = localStorage.getItem('horyc_token');
@@ -36,6 +37,7 @@ export default function App() {
         {/* Auth Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/claim-profile" element={<ClaimProfile />} />
 
         {/* Dashboards & Portals */}
         <Route path="/portal" element={<ProtectedRoute roles={["member", "leader"]}><MemberPortal /></ProtectedRoute>} />

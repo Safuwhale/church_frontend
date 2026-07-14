@@ -133,11 +133,17 @@ export default function Login() {
             {isLoading ? 'Authenticating...' : 'Sign In'}
           </button>
         </form>
-        <div className="mt-8 text-center border-t border-slate-100 pt-6">
+        <div className="mt-8 text-center border-t border-slate-100 pt-6 space-y-2">
+          <p className="text-sm text-slate-500">
+            Already a member but haven't logged in?{' '}
+            <Link to="/claim-profile" className="font-bold text-brand-blue hover:text-blue-700 transition-colors">
+              Claim your account
+            </Link>
+          </p>
           <p className="text-sm text-slate-500">
             First time here?{' '}
             <Link to="/register" className="font-bold text-brand-blue hover:text-blue-700 transition-colors">
-              Create your profile
+              Create a new profile
             </Link>
           </p>
         </div>

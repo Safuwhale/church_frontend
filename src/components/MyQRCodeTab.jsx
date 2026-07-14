@@ -1,12 +1,7 @@
-/**
- * MyQRCodeTab Component
- * Displays the member's QR Pass and manages the Self-Scanner trigger.
- */
-
 import { useState, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Download, Camera } from 'lucide-react';
-import SelfScanner from './SelfScanner'; // Importing your consistent scanner component
+import SelfScanner from './SelfScanner';
 import { downloadQrAsPng } from '../utils/qrDownload';
 
 export default function MyQRCodeTab({ userData }) {
@@ -67,10 +62,19 @@ export default function MyQRCodeTab({ userData }) {
         <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col items-center text-center relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-32 bg-slate-900"></div>
           
+          {/* AVATAR RENDERER */}
           <div className="relative z-10 w-24 h-24 bg-white rounded-full flex items-center justify-center border-4 border-white shadow-md mb-6">
-             <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center font-display font-bold text-3xl text-white">
+            {userData?.profile_photo_url ? (
+              <img 
+                src={userData.profile_photo_url} 
+                alt={memberName} 
+                className="w-full h-full rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center font-display font-bold text-3xl text-white">
                 {memberName.charAt(0)}
-             </div>
+              </div>
+            )}
           </div>
 
           <h2 className="font-display text-2xl font-bold text-slate-800 mb-1">{memberName}</h2>
