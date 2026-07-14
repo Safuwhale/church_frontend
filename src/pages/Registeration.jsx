@@ -1,32 +1,84 @@
-import { useState } from 'react';
-import { UserPlus, ArrowLeft, CheckCircle2, Copy } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { UserPlus, ArrowLeft, CheckCircle2, Copy, Camera, Loader2 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
 export default function Register() {
-  // Using snake_case to perfectly match your FastAPI Redoc schema
+  const fileInputRef = useRef(null);
+  
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
+    email: '',
+    sex: '',
     phone_number: '',
     whatsapp_same_as_phone: true,
     whatsapp_number: '',
     dob: '',
     location_zone: '',
     contact_person_name: '',
-    contact_person_relation: ''
+    contact_person_relation: '',
+    contact_person_phone: '',
+    profile_photo_url: ''
   });
   
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   
-  // New state to hold the generated user data for the success screen
   const [registeredUser, setRegisteredUser] = useState(null); 
-  
   const navigate = useNavigate();
 
   const handleChange = (e) => {
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     setFormData({ ...formData, [e.target.name]: value });
+  };
+
+  // --- CLOUDINARY UPLOAD LOGIC ---
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image must be less than 5MB.');
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    setError('');
+
+    try {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL;
+      const sigResponse = await fetch(`${API_BASE}/api/users/generate-upload-signature`);
+      
+      if (!sigResponse.ok) throw new Error("Could not connect to secure upload server.");
+      const { timestamp, signature, folder, api_key, cloud_name } = await sigResponse.json();
+
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      uploadData.append('api_key', api_key);
+      uploadData.append('timestamp', timestamp);
+      uploadData.append('signature', signature);
+      uploadData.append('folder', folder);
+
+      const cloudinaryRes = await fetch(`https://api.cloudinary.com/v1_1/${cloud_name}/image/upload`, {
+        method: 'POST',
+        body: uploadData,
+      });
+
+      const cloudinaryData = await cloudinaryRes.json();
+      
+      if (!cloudinaryRes.ok) {
+        throw new Error(cloudinaryData.error?.message || "Upload failed");
+      }
+
+      setFormData(prev => ({ ...prev, profile_photo_url: cloudinaryData.secure_url }));
+      
+    } catch (err) {
+      console.error(err);
+      setError('Failed to upload photo. Please try again.');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
   };
 
   const handleRegister = async (e) => {
@@ -37,12 +89,10 @@ export default function Register() {
     try {
       const payload = { ...formData };
       
-      // Format data correctly
       if (payload.whatsapp_same_as_phone) {
         payload.whatsapp_number = null; 
       }
       
-      // To FIX: Add whatapp_same_as_phone to the dabase model
       delete payload.whatsapp_same_as_phone;
 
       const API_BASE = import.meta.env.VITE_API_BASE_URL;
@@ -57,7 +107,6 @@ export default function Register() {
       const data = await response.json();
 
       if (!response.ok) {
-        // Safely parse FastAPI's array of validation errors so it doesn't return [object Object]
         const errorMsg = Array.isArray(data.detail) 
           ? data.detail.map(err => err.msg).join(', ') 
           : data.detail;
@@ -65,7 +114,6 @@ export default function Register() {
         throw new Error(errorMsg || 'Registration failed. Please check your inputs.');
       }
 
-      // Success!
       setRegisteredUser(data);
 
     } catch (err) {
@@ -85,7 +133,7 @@ export default function Register() {
   };
 
   // ==========================================
-  // SUCCESS SCREEN (Shown after successful API call)
+  // SUCCESS SCREEN
   // ==========================================
   if (registeredUser) {
     return (
@@ -129,58 +177,82 @@ export default function Register() {
   // ==========================================
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 py-12">
-      <div className="w-full max-w-lg bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-slate-100">
+      <div className="w-full max-w-2xl bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-slate-100">
         
         <div className="text-center mb-8">
           <div className="bg-emerald-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-emerald-600">
             <UserPlus size={32} />
           </div>
           <h1 className="font-display text-2xl text-brand-dark font-bold">House of Refuge Youth Church</h1>
-          <p className="text-slate-500 text-sm mt-2">Fill in your details</p>
+          <p className="text-slate-500 text-sm mt-2">Fill in your complete details to register</p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 text-red-600 text-sm rounded-xl text-center border border-red-100 font-medium">
+          <div className="mb-6 p-4 bg-red-50 text-red-600 text-sm rounded-xl text-center border border-red-100 font-medium animate-in slide-in-from-top-2">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleRegister} className="space-y-6">
+        <form onSubmit={handleRegister} className="space-y-8">
           
+          {/* PROFILE PHOTO UPLOAD */}
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <div className="relative w-28 h-28 rounded-full bg-slate-100 border-4 border-white shadow-md flex items-center justify-center overflow-hidden">
+              {formData.profile_photo_url ? (
+                <img src={formData.profile_photo_url} alt="Profile preview" className="w-full h-full object-cover" />
+              ) : (
+                <UserPlus size={32} className="text-slate-300" />
+              )}
+              {isUploadingPhoto && (
+                <div className="absolute inset-0 bg-white/70 flex items-center justify-center backdrop-blur-sm">
+                  <Loader2 className="animate-spin text-brand-blue" size={28} />
+                </div>
+              )}
+            </div>
+            
+            <input 
+              type="file" accept="image/*" ref={fileInputRef} onChange={handlePhotoUpload} className="hidden" 
+            />
+            <button 
+              type="button" disabled={isUploadingPhoto} onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-bold hover:bg-slate-50 transition-all shadow-sm"
+            >
+              <Camera size={16} />
+              {formData.profile_photo_url ? 'Change Photo' : 'Upload Photo'}
+            </button>
+          </div>
+
           {/* PERSONAL DETAILS */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-slate-800 border-b pb-2 uppercase tracking-wider">Personal Details</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">First Name *</label>
-                <input 
-                  type="text" name="first_name" value={formData.first_name} onChange={handleChange} required
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors"
-                />
+                <input type="text" name="first_name" value={formData.first_name} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Last Name *</label>
-                <input 
-                  type="text" name="last_name" value={formData.last_name} onChange={handleChange} required
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors"
-                />
+                <input type="text" name="last_name" value={formData.last_name} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Email Address</label>
+                <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Sex</label>
+                <select name="sex" value={formData.sex} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white appearance-none">
+                  <option value="">Select...</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Date of Birth *</label>
-                <input 
-                  type="date" name="dob" value={formData.dob} onChange={handleChange} required
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors text-slate-700"
-                />
+                <input type="date" name="dob" value={formData.dob} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white text-slate-700" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Location Zone *</label>
-                <input 
-                  type="text" name="location_zone" placeholder="e.g., Jimeta, Yola" value={formData.location_zone} onChange={handleChange} required
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors"
-                />
+                <input type="text" name="location_zone" placeholder="e.g., Jimeta, Yola" value={formData.location_zone} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
               </div>
             </div>
           </div>
@@ -188,64 +260,48 @@ export default function Register() {
           {/* CONTACT DETAILS */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-slate-800 border-b pb-2 uppercase tracking-wider">Contact Details</h3>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Phone Number *</label>
-              <input 
-                type="tel" name="phone_number" placeholder="08000000000" value={formData.phone_number} onChange={handleChange} required
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 mt-2">
-              <input 
-                type="checkbox" id="whatsapp_same" name="whatsapp_same_as_phone" 
-                checked={formData.whatsapp_same_as_phone} onChange={handleChange}
-                className="w-4 h-4 text-brand-blue rounded border-slate-300"
-              />
-              <label htmlFor="whatsapp_same" className="text-sm text-slate-600 cursor-pointer">
-                My WhatsApp number is the same as my phone number
-              </label>
-            </div>
-
-            {!formData.whatsapp_same_as_phone && (
-              <div className="animate-in fade-in slide-in-from-top-2">
-                <label className="block text-xs font-medium text-slate-500 mb-1">WhatsApp Number</label>
-                <input 
-                  type="tel" name="whatsapp_number" placeholder="08000000000" value={formData.whatsapp_number} onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors"
-                />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Phone Number *</label>
+                <input type="tel" name="phone_number" placeholder="08000000000" value={formData.phone_number} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
               </div>
-            )}
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">WhatsApp Number</label>
+                <input type="tel" name="whatsapp_number" placeholder={formData.whatsapp_same_as_phone ? 'Same as phone' : '08000000000'} value={formData.whatsapp_number} onChange={handleChange} disabled={formData.whatsapp_same_as_phone} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white disabled:opacity-50" />
+                <div className="flex items-center gap-2 mt-2">
+                  <input type="checkbox" id="whatsapp_same" name="whatsapp_same_as_phone" checked={formData.whatsapp_same_as_phone} onChange={handleChange} className="w-4 h-4 text-brand-blue rounded border-slate-300" />
+                  <label htmlFor="whatsapp_same" className="text-sm text-slate-600 cursor-pointer">Same as phone number</label>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* EMERGENCY CONTACT */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-slate-800 border-b pb-2 uppercase tracking-wider">Emergency Contact</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Contact Name *</label>
-                <input 
-                  type="text" name="contact_person_name" placeholder="Full Name" value={formData.contact_person_name} onChange={handleChange} required
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors"
-                />
+                <input type="text" name="contact_person_name" placeholder="Full Name" value={formData.contact_person_name} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Relationship *</label>
-                <input 
-                  type="text" name="contact_person_relation" placeholder="e.g., Parent, Sibling" value={formData.contact_person_relation} onChange={handleChange} required
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors"
-                />
+                <input type="text" name="contact_person_relation" placeholder="e.g., Parent, Sibling" value={formData.contact_person_relation} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Contact Phone</label>
+                <input type="tel" name="contact_person_phone" placeholder="08000000000" value={formData.contact_person_phone} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
               </div>
             </div>
           </div>
 
           <button 
             type="submit" 
-            disabled={isLoading}
+            disabled={isLoading || isUploadingPhoto}
             className={`w-full text-white py-4 rounded-xl font-bold transition-colors shadow-lg flex items-center justify-center gap-2 mt-4 
-              ${isLoading ? 'bg-emerald-400 cursor-not-allowed shadow-none' : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30'}`}
+              ${(isLoading || isUploadingPhoto) ? 'bg-emerald-400 cursor-not-allowed shadow-none' : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30'}`}
           >
-            {isLoading ? 'Creating Profile...' : 'Complete Registration'}
+            {isLoading ? <><Loader2 size={20} className="animate-spin"/> Creating Profile...</> : 'Complete Registration'}
           </button>
         </form>
 
