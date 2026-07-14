@@ -1,32 +1,40 @@
-import { useEffect, useState } from 'react';
-import { User, Lock, Save, CheckCircle2, AlertCircle, IdCard, Eye, EyeOff } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { User, Lock, Save, CheckCircle2, AlertCircle, IdCard, Eye, EyeOff, Camera, Loader2 } from 'lucide-react';
 import { secureFetch } from '../api/api';
 
 const buildProfileState = (userData) => ({
   first_name: userData?.first_name || '',
   last_name: userData?.last_name || '',
+  email: userData?.email || '',
+  sex: userData?.sex || '',
   phone_number: userData?.phone_number || '',
   whatsapp_same_as_phone: true,
   whatsapp_number: userData?.whatsapp_number || '',
   dob: userData?.dob || '',
   location_zone: userData?.location_zone || '',
   contact_person_name: userData?.contact_person_name || '',
-  contact_person_relation: userData?.contact_person_relation || ''
+  contact_person_relation: userData?.contact_person_relation || '',
+  contact_person_phone: userData?.contact_person_phone || '',
+  profile_photo_url: userData?.profile_photo_url || ''
 });
 
 export default function ProfileTab({ userData }) {
+  const fileInputRef = useRef(null);
   const [profileData, setProfileData] = useState(() => buildProfileState(userData));
+  
   const [passwordData, setPasswordData] = useState({
     current_password: '',
     new_password: '',
     confirm_new_password: ''
   });
+  
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
 
   useEffect(() => {
@@ -40,6 +48,57 @@ export default function ProfileTab({ userData }) {
 
   const handlePasswordChange = (e) => {
     setPasswordData({ ...passwordData, [e.target.name]: e.target.value });
+  };
+
+  // --- CLOUDINARY UPLOAD LOGIC ---
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate size (e.g., max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setStatusMsg({ type: 'error', text: 'Image must be less than 5MB.' });
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    setStatusMsg(null);
+
+    try {
+      // 1. Get signature from your backend
+      const sigResponse = await secureFetch('/api/users/generate-upload-signature');
+      if (!sigResponse.ok) throw new Error("Could not connect to secure upload server.");
+      const { timestamp, signature, folder, api_key, cloud_name } = await sigResponse.json();
+
+      // 2. Upload directly to Cloudinary
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('api_key', api_key);
+      formData.append('timestamp', timestamp);
+      formData.append('signature', signature);
+      formData.append('folder', folder);
+
+      const cloudinaryRes = await fetch(`https://api.cloudinary.com/v1_1/${cloud_name}/image/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const cloudinaryData = await cloudinaryRes.json();
+      
+      if (!cloudinaryRes.ok) {
+        throw new Error(cloudinaryData.error?.message || "Upload failed");
+      }
+
+      // 3. Instantly update UI state with the new image
+      setProfileData(prev => ({ ...prev, profile_photo_url: cloudinaryData.secure_url }));
+      setStatusMsg({ type: 'success', text: 'Photo uploaded! Remember to save your profile.' });
+      
+    } catch (err) {
+      console.error(err);
+      setStatusMsg({ type: 'error', text: 'Failed to upload photo. Please try again.' });
+    } finally {
+      setIsUploadingPhoto(false);
+    }
   };
 
   const handleSaveProfile = async (e) => {
@@ -133,28 +192,72 @@ export default function ProfileTab({ userData }) {
         </div>
       )}
 
-      <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100">
-        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+      {/* MEMBER ID CARD */}
+      <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
           <div className="p-2 bg-slate-900 text-white rounded-lg">
             <IdCard size={20} />
           </div>
-          <h3 className="font-bold text-lg text-slate-800">Member ID</h3>
+          <div>
+            <h3 className="font-bold text-lg text-slate-800">Member ID</h3>
+            <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Use this for fast check-ins</p>
+          </div>
         </div>
-        <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">ID</span>
-          <span className="font-mono text-sm font-semibold text-slate-800">{userData?.serial_number || 'N/A'}</span>
+        <div className="inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3">
+          <span className="font-mono text-lg font-bold tracking-widest text-brand-blue">{userData?.serial_number || 'N/A'}</span>
         </div>
       </div>
 
       <form onSubmit={handleSaveProfile} className="space-y-6">
         <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100">
-          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+          <div className="flex items-center gap-3 mb-8 pb-4 border-b border-slate-100">
             <div className="p-2 bg-blue-50 text-brand-blue rounded-lg">
               <User size={20} />
             </div>
-            <h3 className="font-bold text-lg text-slate-800">Profiles</h3>
+            <h3 className="font-bold text-lg text-slate-800">Personal Information</h3>
           </div>
 
+          {/* PHOTO UPLOAD SECTION */}
+          <div className="flex flex-col sm:flex-row items-center gap-6 mb-8 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+            <div className="relative w-24 h-24 rounded-full bg-slate-200 border-4 border-white shadow-md flex-shrink-0 flex items-center justify-center overflow-hidden">
+              {profileData.profile_photo_url ? (
+                <img src={profileData.profile_photo_url} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-3xl font-display font-bold text-slate-400">
+                  {profileData.first_name ? profileData.first_name.charAt(0) : '?'}
+                </span>
+              )}
+              {isUploadingPhoto && (
+                <div className="absolute inset-0 bg-white/70 flex items-center justify-center backdrop-blur-sm">
+                  <Loader2 className="animate-spin text-brand-blue" size={24} />
+                </div>
+              )}
+            </div>
+            
+            <div className="text-center sm:text-left">
+              <h4 className="font-bold text-slate-800 text-sm mb-1">Profile Photo</h4>
+              <p className="text-xs text-slate-500 mb-3 max-w-xs">Upload a clear photo of your face for your digital ID card. Max size 5MB.</p>
+              
+              <input 
+                type="file" 
+                accept="image/*" 
+                ref={fileInputRef}
+                onChange={handlePhotoUpload}
+                className="hidden" 
+              />
+              <button 
+                type="button" 
+                disabled={isUploadingPhoto}
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-bold hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm disabled:opacity-50"
+              >
+                <Camera size={16} />
+                {profileData.profile_photo_url ? 'Change Photo' : 'Upload Photo'}
+              </button>
+            </div>
+          </div>
+
+          {/* FORM GRID */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">First Name</label>
@@ -165,6 +268,18 @@ export default function ProfileTab({ userData }) {
               <input type="text" name="last_name" value={profileData.last_name} onChange={handleProfileChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
             </div>
             <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Email Address</label>
+              <input type="email" name="email" value={profileData.email} onChange={handleProfileChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Sex</label>
+              <select name="sex" value={profileData.sex} onChange={handleProfileChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white appearance-none">
+                <option value="">Select...</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+            <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Phone Number</label>
               <input type="tel" name="phone_number" value={profileData.phone_number} onChange={handleProfileChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
             </div>
@@ -172,8 +287,8 @@ export default function ProfileTab({ userData }) {
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">WhatsApp Number</label>
               <input type="tel" name="whatsapp_number" value={profileData.whatsapp_number} onChange={handleProfileChange} placeholder={profileData.whatsapp_same_as_phone ? 'Same as phone' : 'Enter WhatsApp...'} disabled={profileData.whatsapp_same_as_phone} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white disabled:opacity-50 disabled:cursor-not-allowed" />
               <div className="flex items-center gap-2 mt-2">
-                <input type="checkbox" id="update_wa_same" name="whatsapp_same_as_phone" checked={profileData.whatsapp_same_as_phone} onChange={handleProfileChange} className="rounded border-slate-300 text-brand-blue" />
-                <label htmlFor="update_wa_same" className="text-xs text-slate-500 cursor-pointer">Same as phone number</label>
+                <input type="checkbox" id="update_wa_same" name="whatsapp_same_as_phone" checked={profileData.whatsapp_same_as_phone} onChange={handleProfileChange} className="rounded border-slate-300 text-brand-blue cursor-pointer" />
+                <label htmlFor="update_wa_same" className="text-xs text-slate-500 cursor-pointer font-medium">Same as phone number</label>
               </div>
             </div>
             <div>
@@ -186,9 +301,9 @@ export default function ProfileTab({ userData }) {
             </div>
           </div>
 
-          <div className="mt-6 pt-6 border-t border-slate-100">
+          <div className="mt-8 pt-6 border-t border-slate-100">
             <h4 className="text-sm font-bold text-slate-700 mb-4">Emergency Contact</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Contact Name</label>
                 <input type="text" name="contact_person_name" value={profileData.contact_person_name} onChange={handleProfileChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
@@ -197,12 +312,16 @@ export default function ProfileTab({ userData }) {
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Relationship</label>
                 <input type="text" name="contact_person_relation" value={profileData.contact_person_relation} onChange={handleProfileChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
               </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Contact Phone</label>
+                <input type="tel" name="contact_person_phone" value={profileData.contact_person_phone} onChange={handleProfileChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+              </div>
             </div>
           </div>
 
-          <div className="flex justify-end pt-4">
+          <div className="flex justify-end pt-8">
             <button type="submit" disabled={isSavingProfile} className={`px-8 py-4 rounded-xl font-bold transition-colors shadow-lg flex items-center justify-center gap-2 text-white ${isSavingProfile ? 'bg-brand-blue/70 cursor-not-allowed shadow-none' : 'bg-brand-blue hover:bg-blue-700 shadow-blue-600/30'}`}>
-              {isSavingProfile ? 'Saving Changes...' : (
+              {isSavingProfile ? <><Loader2 size={20} className="animate-spin" /> Saving Changes...</> : (
                 <>
                   <Save size={20} />
                   Update Profile
@@ -213,6 +332,7 @@ export default function ProfileTab({ userData }) {
         </div>
       </form>
 
+      {/* PASSWORD SECTION */}
       <form onSubmit={handleSavePassword} className="space-y-6">
         <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
@@ -222,10 +342,9 @@ export default function ProfileTab({ userData }) {
             <h3 className="font-bold text-lg text-slate-800">Password</h3>
           </div>
 
-          <p className="text-sm text-slate-500 mb-6">Update your password.</p>
+          <p className="text-sm text-slate-500 mb-6">Update your secure login password.</p>
 
           <div className="space-y-4 max-w-md">
-            {/* CURRENT PASSWORD */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Current Password</label>
               <div className="relative">
@@ -237,17 +356,12 @@ export default function ProfileTab({ userData }) {
                   placeholder="••••••••" 
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent transition-all bg-slate-50 focus:bg-white pr-12" 
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-blue transition-colors"
-                >
+                <button type="button" onClick={() => setShowCurrentPassword(!showCurrentPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-blue transition-colors">
                   {showCurrentPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
             </div>
 
-            {/* NEW PASSWORD */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">New Password</label>
               <div className="relative">
@@ -259,17 +373,12 @@ export default function ProfileTab({ userData }) {
                   placeholder="••••••••" 
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent transition-all bg-slate-50 focus:bg-white pr-12" 
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPassword(!showNewPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-blue transition-colors"
-                >
+                <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-blue transition-colors">
                   {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
             </div>
 
-            {/* CONFIRM NEW PASSWORD */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Confirm New Password</label>
               <div className="relative">
@@ -281,11 +390,7 @@ export default function ProfileTab({ userData }) {
                   placeholder="••••••••" 
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent transition-all bg-slate-50 focus:bg-white pr-12" 
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-blue transition-colors"
-                >
+                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-blue transition-colors">
                   {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
@@ -294,7 +399,7 @@ export default function ProfileTab({ userData }) {
 
           <div className="flex justify-end pt-6">
             <button type="submit" disabled={isSavingPassword} className={`px-8 py-4 rounded-xl font-bold transition-colors shadow-lg flex items-center justify-center gap-2 text-white ${isSavingPassword ? 'bg-slate-500 cursor-not-allowed shadow-none' : 'bg-slate-900 hover:bg-slate-800 shadow-slate-600/30'}`}>
-              {isSavingPassword ? 'Updating Password...' : (
+              {isSavingPassword ? <><Loader2 size={20} className="animate-spin" /> Updating...</> : (
                 <>
                   <Lock size={20} />
                   Update Password
