@@ -42,17 +42,25 @@ export default function DashboardLayout({ userData, menuItems, activeTab, setAct
           </div>
         </div>
 
-        {/* PROFILE CARD */}
-        <div className="bg-slate-800/50 p-4 rounded-2xl mb-8 border border-slate-700 backdrop-blur-sm">
-          <p className="text-sm text-slate-400 mb-1">Welcome back,</p>
-          <p className="font-bold text-lg text-white mb-2">{userData.first_name}</p>
-          <div className="flex gap-2">
-            <span className="text-xs font-mono bg-brand-blue/20 text-brand-light px-2 py-1 rounded-md border border-brand-blue/30">
+        {/* PROFILE CARD (Updated with Profile Photo Logic) */}
+        <div className="bg-slate-800/50 p-4 rounded-2xl mb-8 border border-slate-700 backdrop-blur-sm flex items-center gap-3">
+          {userData.profile_photo_url ? (
+            <img 
+              src={userData.profile_photo_url} 
+              alt="Profile" 
+              className="w-12 h-12 rounded-full object-cover border-2 border-brand-blue/30 bg-slate-800"
+            />
+          ) : (
+            <div className="w-12 h-12 bg-brand-blue rounded-full flex items-center justify-center font-display font-bold text-xl text-white shadow-md flex-shrink-0">
+              {userData.first_name.charAt(0)}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-slate-400 mb-0.5">Welcome back,</p>
+            <p className="font-bold text-base text-white truncate leading-tight mb-1">{userData.first_name}</p>
+            <span className="inline-block text-[10px] font-mono bg-brand-blue/20 text-brand-light px-2 py-0.5 rounded border border-brand-blue/30">
               {userData.serial_number}
             </span>
-           {/*} <span className="text-xs font-bold uppercase tracking-wider bg-slate-700 text-slate-300 px-2 py-1 rounded-md border border-slate-600">
-              {userData.role}
-            </span>*/}
           </div>
         </div>
 
