@@ -15,16 +15,30 @@ export default function ClaimProfile() {
   const [verificationToken, setVerificationToken] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
   
-  // Profile Completion State
-  const [email, setEmail] = useState('');
-  const [sex, setSex] = useState('');
-  const [contactPhone, setContactPhone] = useState('');
+  // Profile Completion State (Consolidated like Registration)
+  const [formData, setFormData] = useState({
+    email: '',
+    sex: '',
+    whatsapp_same_as_phone: true,
+    whatsapp_number: '',
+    dob: '',
+    location_zone: '',
+    contact_person_name: '',
+    contact_person_relation: '',
+    contact_person_phone: ''
+  });
+  
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
 
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
   const API_BASE = import.meta.env.VITE_API_BASE_URL;
+
+  const handleChange = (e) => {
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    setFormData({ ...formData, [e.target.name]: value });
+  };
 
   // --- STEP 1: Phone Lookup ---
   const handleLookup = async (e) => {
@@ -97,23 +111,21 @@ export default function ClaimProfile() {
 
       // 1. If photo exists, upload to Cloudinary first
       if (photoFile) {
-        // Fetch Signature from FastAPI (NOW PASSING THE SERIAL NUMBER!)
         const sigRes = await fetch(`${API_BASE}/api/users/generate-upload-signature?identifier=${serialNumber}`);
         if (!sigRes.ok) throw new Error('Failed to initiate secure upload.');
         const sigData = await sigRes.json();
 
-        // Push directly to Cloudinary
-        const formData = new FormData();
-        formData.append('file', photoFile);
-        formData.append('api_key', sigData.api_key);
-        formData.append('timestamp', sigData.timestamp);
-        formData.append('signature', sigData.signature);
-        formData.append('folder', sigData.folder);
-        formData.append('public_id', sigData.public_id); // NEW: Forces our custom naming convention!
+        const uploadData = new FormData();
+        uploadData.append('file', photoFile);
+        uploadData.append('api_key', sigData.api_key);
+        uploadData.append('timestamp', sigData.timestamp);
+        uploadData.append('signature', sigData.signature);
+        uploadData.append('folder', sigData.folder);
+        uploadData.append('public_id', sigData.public_id);
 
         const cloudRes = await fetch(`https://api.cloudinary.com/v1_1/${sigData.cloud_name}/image/upload`, {
           method: 'POST',
-          body: formData
+          body: uploadData
         });
         const cloudData = await cloudRes.json();
         if (!cloudRes.ok) throw new Error('Image upload failed.');
@@ -121,7 +133,14 @@ export default function ClaimProfile() {
         photoUrl = cloudData.secure_url;
       }
 
-      // 2. Update Profile in FastAPI
+      // 2. Prepare payload exactly like Registration
+      const payload = { ...formData };
+      if (payload.whatsapp_same_as_phone) {
+        payload.whatsapp_number = phoneNumber; // Automatically use their looked-up phone number
+      }
+      delete payload.whatsapp_same_as_phone;
+
+      // 3. Update Profile in FastAPI
       const claimRes = await fetch(`${API_BASE}/api/users/claim`, {
         method: 'PUT',
         headers: { 
@@ -130,10 +149,8 @@ export default function ClaimProfile() {
         },
         body: JSON.stringify({
           phone_number: phoneNumber,
-          email: email || null,
-          sex: sex || null,
-          contact_person_phone: contactPhone || null,
-          profile_photo_url: photoUrl
+          profile_photo_url: photoUrl,
+          ...payload // Spreads all the new fields into the body
         })
       });
 
@@ -156,8 +173,8 @@ export default function ClaimProfile() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50">
-      <div className="w-full max-w-sm bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-6 bg-slate-50">
+      <div className={`w-full bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-slate-100 transition-all ${step === 3 ? 'max-w-2xl' : 'max-w-sm'}`}>
         
         {/* Dynamic Header */}
         <div className="text-center mb-6">
@@ -175,7 +192,7 @@ export default function ClaimProfile() {
 
         {/* Global Error Display */}
         {error && (
-          <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-xl text-center border border-red-100">
+          <div className="mb-6 p-4 bg-red-50 text-red-600 text-sm rounded-xl text-center border border-red-100 font-medium animate-in slide-in-from-top-2">
             {error}
           </div>
         )}
@@ -229,60 +246,92 @@ export default function ClaimProfile() {
             >
               {isLoading ? 'Verifying...' : 'Verify Identity'} <ArrowRight size={18} />
             </button>
-            <button type="button" onClick={() => setStep(1)} className="w-full text-slate-500 text-sm mt-2 font-medium">
+            <button type="button" onClick={() => setStep(1)} className="w-full text-slate-500 text-sm mt-2 font-medium hover:text-brand-blue">
               Not you? Go back.
             </button>
           </form>
         )}
 
-        {/* STEP 3: Complete Details */}
+        {/* STEP 3: Complete Details (Expanded View) */}
         {step === 3 && (
-          <form onSubmit={handleClaim} className="space-y-4">
-            {/* Image Upload Avatar UI */}
-            <div className="flex flex-col items-center mb-6">
-              <input 
-                type="file" 
-                accept="image/jpeg, image/png, image/webp" 
-                className="hidden" 
-                ref={fileInputRef} 
-                onChange={handleImageChange}
-              />
-              <button 
-                type="button"
-                onClick={() => fileInputRef.current.click()}
-                className="relative w-24 h-24 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100 flex items-center justify-center group"
-              >
+          <form onSubmit={handleClaim} className="space-y-6">
+            
+            {/* Image Upload UI */}
+            <div className="flex flex-col items-center justify-center space-y-4 mb-4">
+              <div className="relative w-28 h-28 rounded-full bg-slate-100 border-4 border-white shadow-md flex items-center justify-center overflow-hidden">
                 {photoPreview ? (
                   <img src={photoPreview} alt="Profile preview" className="w-full h-full object-cover" />
                 ) : (
-                  <Camera size={32} className="text-slate-400 group-hover:text-brand-blue transition-colors" />
+                  <UserCheck size={32} className="text-slate-300" />
                 )}
-                <div className="absolute bottom-0 w-full bg-black/50 py-1 text-[10px] text-white text-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  Upload
-                </div>
+              </div>
+              <input 
+                type="file" accept="image/*" ref={fileInputRef} onChange={handleImageChange} className="hidden" 
+              />
+              <button 
+                type="button" disabled={isLoading} onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-bold hover:bg-slate-50 transition-all shadow-sm"
+              >
+                <Camera size={16} />
+                {photoPreview ? 'Change Photo' : 'Upload Photo'}
               </button>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-brand-dark mb-1">Email Address (Optional)</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@email.com" className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue" />
+            {/* EXPANDED GRID FIELDS */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-slate-800 border-b pb-2 uppercase tracking-wider">Missing Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Email Address</label>
+                  <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Sex</label>
+                  <select name="sex" value={formData.sex} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white appearance-none">
+                    <option value="">Select...</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Date of Birth *</label>
+                  <input type="date" name="dob" value={formData.dob} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white text-slate-700" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Location </label>
+                  <input type="text" name="location_zone" placeholder="Home address" value={formData.location_zone} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-slate-500 mb-1">WhatsApp Number</label>
+                  <input type="tel" name="whatsapp_number" placeholder={formData.whatsapp_same_as_phone ? `Same as ${phoneNumber}` : '08000000000'} value={formData.whatsapp_number} onChange={handleChange} disabled={formData.whatsapp_same_as_phone} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white disabled:opacity-50" />
+                  <div className="flex items-center gap-2 mt-2">
+                    <input type="checkbox" id="whatsapp_same" name="whatsapp_same_as_phone" checked={formData.whatsapp_same_as_phone} onChange={handleChange} className="w-4 h-4 text-brand-blue rounded border-slate-300" />
+                    <label htmlFor="whatsapp_same" className="text-sm text-slate-600 cursor-pointer">Same as my registered phone number</label>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-brand-dark mb-1">Sex</label>
-              <select value={sex} onChange={(e) => setSex(e.target.value)} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue bg-white">
-                <option value="">Select...</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-              </select>
+            {/* EMERGENCY CONTACT */}
+            <div className="space-y-4 pt-2">
+              <h3 className="text-sm font-bold text-slate-800 border-b pb-2 uppercase tracking-wider">Emergency Contact</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Contact Name *</label>
+                  <input type="text" name="contact_person_name" placeholder="Full Name" value={formData.contact_person_name} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Relationship *</label>
+                  <input type="text" name="contact_person_relation" placeholder="e.g., Parent, Sibling" value={formData.contact_person_relation} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Contact Phone *</label>
+                  <input type="tel" name="contact_person_phone" placeholder="08000000000" value={formData.contact_person_phone} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-brand-dark mb-1">Emergency Contact Phone</label>
-              <input type="tel" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="08000000000" required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-blue" />
-            </div>
-
-            <button type="submit" disabled={isLoading} className="w-full bg-brand-blue hover:bg-blue-700 text-white py-3.5 rounded-xl font-medium transition-colors shadow-lg flex items-center justify-center gap-2 mt-6 disabled:opacity-70">
+            <button type="submit" disabled={isLoading} className="w-full bg-brand-blue hover:bg-blue-700 text-white py-4 rounded-xl font-bold transition-colors shadow-lg flex items-center justify-center gap-2 mt-6 disabled:opacity-70">
               {isLoading ? 'Saving...' : 'Secure My Account'}
             </button>
           </form>
