@@ -55,7 +55,6 @@ export default function ProfileTab({ userData }) {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Validate size (e.g., max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       setStatusMsg({ type: 'error', text: 'Image must be less than 5MB.' });
       return;
@@ -65,19 +64,17 @@ export default function ProfileTab({ userData }) {
     setStatusMsg(null);
 
     try {
-      // 1. Get signature from your backend (NOW PASSING THE ID!)
       const sigResponse = await secureFetch(`/api/users/generate-upload-signature?identifier=${userData.serial_number}`);
       if (!sigResponse.ok) throw new Error("Could not connect to secure upload server.");
       const { timestamp, signature, folder, api_key, cloud_name, public_id } = await sigResponse.json();
 
-      // 2. Upload directly to Cloudinary
       const formData = new FormData();
       formData.append('file', file);
       formData.append('api_key', api_key);
       formData.append('timestamp', timestamp);
       formData.append('signature', signature);
       formData.append('folder', folder);
-      formData.append('public_id', public_id); // NEW: Forces our custom naming convention!
+      formData.append('public_id', public_id);
 
       const cloudinaryRes = await fetch(`https://api.cloudinary.com/v1_1/${cloud_name}/image/upload`, {
         method: 'POST',
@@ -90,7 +87,6 @@ export default function ProfileTab({ userData }) {
         throw new Error(cloudinaryData.error?.message || "Upload failed");
       }
 
-      // 3. Instantly update UI state with the new image
       setProfileData(prev => ({ ...prev, profile_photo_url: cloudinaryData.secure_url }));
       setStatusMsg({ type: 'success', text: 'Photo uploaded! Remember to save your profile.' });
       
@@ -112,6 +108,15 @@ export default function ProfileTab({ userData }) {
         ...profileData,
         whatsapp_number: profileData.whatsapp_same_as_phone ? profileData.phone_number : profileData.whatsapp_number,
       };
+
+      // --- NEW CLEANUP LOGIC ---
+      // Pydantic STRICTLY expects `null` for empty optional fields (like Dates and Enums).
+      // This loop safely transforms all empty strings `""` into `null` before sending.
+      Object.keys(payload).forEach(key => {
+        if (payload[key] === "") {
+          payload[key] = null;
+        }
+      });
 
       const response = await secureFetch('/api/users/me', {
         method: 'PUT',

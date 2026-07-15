@@ -51,7 +51,7 @@ export default function Register() {
     setError('');
   };
 
-  // --- THE NEW 3-STEP REGISTRATION FLOW ---
+  // --- REGISTRATION FLOW ---
   const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
@@ -62,9 +62,18 @@ export default function Register() {
       const payload = { ...formData };
       
       if (payload.whatsapp_same_as_phone) {
-        payload.whatsapp_number = null; 
+        // Automatically grab the phone number they just typed!
+        payload.whatsapp_number = payload.phone_number; 
       }
       delete payload.whatsapp_same_as_phone;
+
+      // STRICT DATA CLEANUP LOOP
+      // Converts any empty string into `null` to prevent FastAPI 422 errors
+      Object.keys(payload).forEach(key => {
+        if (payload[key] === "") {
+          payload[key] = null;
+        }
+      });
 
       const API_BASE = import.meta.env.VITE_API_BASE_URL;
       
@@ -262,8 +271,8 @@ export default function Register() {
                 <input type="date" name="dob" value={formData.dob} onChange={handleChange} required disabled={isLoading} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white text-slate-700 disabled:opacity-50" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Location Zone *</label>
-                <input type="text" name="location_zone" placeholder="e.g., Jimeta, Yola" value={formData.location_zone} onChange={handleChange} required disabled={isLoading} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white disabled:opacity-50" />
+                <label className="block text-xs font-medium text-slate-500 mb-1">Location *</label>
+                <input type="text" name="location_zone" placeholder="Home Address" value={formData.location_zone} onChange={handleChange} required disabled={isLoading} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white disabled:opacity-50" />
               </div>
             </div>
           </div>

@@ -140,6 +140,14 @@ export default function ClaimProfile() {
       }
       delete payload.whatsapp_same_as_phone;
 
+      // 🌟 STRICT DATA CLEANUP LOOP 🌟
+      // Converts any empty string into `null` to prevent FastAPI 422 errors
+      Object.keys(payload).forEach(key => {
+        if (payload[key] === "") {
+          payload[key] = null;
+        }
+      });
+
       // 3. Update Profile in FastAPI
       const claimRes = await fetch(`${API_BASE}/api/users/claim`, {
         method: 'PUT',
@@ -150,7 +158,7 @@ export default function ClaimProfile() {
         body: JSON.stringify({
           phone_number: phoneNumber,
           profile_photo_url: photoUrl,
-          ...payload // Spreads all the new fields into the body
+          ...payload // Spreads all the cleaned fields into the body
         })
       });
 
@@ -286,7 +294,7 @@ export default function ClaimProfile() {
                   <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Sex</label>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Sex *</label>
                   <select name="sex" value={formData.sex} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white appearance-none">
                     <option value="">Select...</option>
                     <option value="Male">Male</option>
@@ -298,7 +306,7 @@ export default function ClaimProfile() {
                   <input type="date" name="dob" value={formData.dob} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white text-slate-700" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Location </label>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Location *</label>
                   <input type="text" name="location_zone" placeholder="Home address" value={formData.location_zone} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
                 </div>
                 <div className="md:col-span-2">
