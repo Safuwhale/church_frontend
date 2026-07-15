@@ -17,13 +17,16 @@ export default function Register() {
     location_zone: '',
     contact_person_name: '',
     contact_person_relation: '',
-    contact_person_phone: '',
-    profile_photo_url: ''
+    contact_person_phone: ''
   });
+  
+  // NEW: States to hold the file locally before upload
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
   
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [loadingText, setLoadingText] = useState('');
   
   const [registeredUser, setRegisteredUser] = useState(null); 
   const navigate = useNavigate();
@@ -33,8 +36,8 @@ export default function Register() {
     setFormData({ ...formData, [e.target.name]: value });
   };
 
-  // --- CLOUDINARY UPLOAD LOGIC ---
-  const handlePhotoUpload = async (e) => {
+  // --- LOCAL PREVIEW ONLY ---
+  const handlePhotoUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -43,48 +46,17 @@ export default function Register() {
       return;
     }
 
-    setIsUploadingPhoto(true);
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
     setError('');
-
-    try {
-      const API_BASE = import.meta.env.VITE_API_BASE_URL;
-      const sigResponse = await fetch(`${API_BASE}/api/users/generate-upload-signature`);
-      
-      if (!sigResponse.ok) throw new Error("Could not connect to secure upload server.");
-      const { timestamp, signature, folder, api_key, cloud_name } = await sigResponse.json();
-
-      const uploadData = new FormData();
-      uploadData.append('file', file);
-      uploadData.append('api_key', api_key);
-      uploadData.append('timestamp', timestamp);
-      uploadData.append('signature', signature);
-      uploadData.append('folder', folder);
-
-      const cloudinaryRes = await fetch(`https://api.cloudinary.com/v1_1/${cloud_name}/image/upload`, {
-        method: 'POST',
-        body: uploadData,
-      });
-
-      const cloudinaryData = await cloudinaryRes.json();
-      
-      if (!cloudinaryRes.ok) {
-        throw new Error(cloudinaryData.error?.message || "Upload failed");
-      }
-
-      setFormData(prev => ({ ...prev, profile_photo_url: cloudinaryData.secure_url }));
-      
-    } catch (err) {
-      console.error(err);
-      setError('Failed to upload photo. Please try again.');
-    } finally {
-      setIsUploadingPhoto(false);
-    }
   };
 
+  // --- THE NEW 3-STEP REGISTRATION FLOW ---
   const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
+    setLoadingText('Creating Profile...');
 
     try {
       const payload = { ...formData };
@@ -92,10 +64,11 @@ export default function Register() {
       if (payload.whatsapp_same_as_phone) {
         payload.whatsapp_number = null; 
       }
-      
       delete payload.whatsapp_same_as_phone;
 
       const API_BASE = import.meta.env.VITE_API_BASE_URL;
+      
+      // STEP 1: Create the User
       const response = await fetch(`${API_BASE}/api/users/onboard`, {
         method: 'POST',
         headers: {
@@ -104,22 +77,65 @@ export default function Register() {
         body: JSON.stringify(payload)
       });
 
-      const data = await response.json();
+      const userData = await response.json();
 
       if (!response.ok) {
-        const errorMsg = Array.isArray(data.detail) 
-          ? data.detail.map(err => err.msg).join(', ') 
-          : data.detail;
+        const errorMsg = Array.isArray(userData.detail) 
+          ? userData.detail.map(err => err.msg).join(', ') 
+          : userData.detail;
           
         throw new Error(errorMsg || 'Registration failed. Please check your inputs.');
       }
 
-      setRegisteredUser(data);
+      // STEP 2: Upload Photo to Cloudinary using their new Serial Number
+      if (photoFile) {
+        setLoadingText('Uploading Photo...');
+        
+        // Pass the serial_number to get a custom file name
+        const sigResponse = await fetch(`${API_BASE}/api/users/generate-upload-signature?identifier=${userData.serial_number}`);
+        
+        if (!sigResponse.ok) {
+           console.warn("User created, but failed to get upload signature.");
+        } else {
+          const { timestamp, signature, folder, api_key, cloud_name, public_id } = await sigResponse.json();
+
+          const uploadData = new FormData();
+          uploadData.append('file', photoFile);
+          uploadData.append('api_key', api_key);
+          uploadData.append('timestamp', timestamp);
+          uploadData.append('signature', signature);
+          uploadData.append('folder', folder);
+          uploadData.append('public_id', public_id); // Forces Cloudinary to use the custom name
+
+          const cloudinaryRes = await fetch(`https://api.cloudinary.com/v1_1/${cloud_name}/image/upload`, {
+            method: 'POST',
+            body: uploadData,
+          });
+          
+          const cloudinaryData = await cloudinaryRes.json();
+
+          if (cloudinaryRes.ok) {
+            // STEP 3: Save the URL to their newly created profile
+            setLoadingText('Finalizing...');
+            
+            await fetch(`${API_BASE}/api/users/${userData.id}/photo`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ profile_photo_url: cloudinaryData.secure_url })
+            });
+            
+            userData.profile_photo_url = cloudinaryData.secure_url;
+          }
+        }
+      }
+
+      setRegisteredUser(userData);
 
     } catch (err) {
       setError(err.message);
     } finally {
       setIsLoading(false);
+      setLoadingText('');
     }
   };
 
@@ -195,18 +211,13 @@ export default function Register() {
 
         <form onSubmit={handleRegister} className="space-y-8">
           
-          {/* PROFILE PHOTO UPLOAD */}
+          {/* PROFILE PHOTO UPLOAD (Local Preview Only) */}
           <div className="flex flex-col items-center justify-center space-y-4">
             <div className="relative w-28 h-28 rounded-full bg-slate-100 border-4 border-white shadow-md flex items-center justify-center overflow-hidden">
-              {formData.profile_photo_url ? (
-                <img src={formData.profile_photo_url} alt="Profile preview" className="w-full h-full object-cover" />
+              {photoPreview ? (
+                <img src={photoPreview} alt="Profile preview" className="w-full h-full object-cover" />
               ) : (
                 <UserPlus size={32} className="text-slate-300" />
-              )}
-              {isUploadingPhoto && (
-                <div className="absolute inset-0 bg-white/70 flex items-center justify-center backdrop-blur-sm">
-                  <Loader2 className="animate-spin text-brand-blue" size={28} />
-                </div>
               )}
             </div>
             
@@ -214,11 +225,11 @@ export default function Register() {
               type="file" accept="image/*" ref={fileInputRef} onChange={handlePhotoUpload} className="hidden" 
             />
             <button 
-              type="button" disabled={isUploadingPhoto} onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-bold hover:bg-slate-50 transition-all shadow-sm"
+              type="button" disabled={isLoading} onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-bold hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
             >
               <Camera size={16} />
-              {formData.profile_photo_url ? 'Change Photo' : 'Upload Photo'}
+              {photoPreview ? 'Change Photo' : 'Upload Photo'}
             </button>
           </div>
 
@@ -228,19 +239,19 @@ export default function Register() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">First Name *</label>
-                <input type="text" name="first_name" value={formData.first_name} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+                <input type="text" name="first_name" value={formData.first_name} onChange={handleChange} required disabled={isLoading} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white disabled:opacity-50" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Last Name *</label>
-                <input type="text" name="last_name" value={formData.last_name} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+                <input type="text" name="last_name" value={formData.last_name} onChange={handleChange} required disabled={isLoading} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white disabled:opacity-50" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Email Address</label>
-                <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+                <input type="email" name="email" value={formData.email} onChange={handleChange} disabled={isLoading} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white disabled:opacity-50" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Sex</label>
-                <select name="sex" value={formData.sex} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white appearance-none">
+                <select name="sex" value={formData.sex} onChange={handleChange} disabled={isLoading} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white appearance-none disabled:opacity-50">
                   <option value="">Select...</option>
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
@@ -248,11 +259,11 @@ export default function Register() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Date of Birth *</label>
-                <input type="date" name="dob" value={formData.dob} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white text-slate-700" />
+                <input type="date" name="dob" value={formData.dob} onChange={handleChange} required disabled={isLoading} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white text-slate-700 disabled:opacity-50" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Location Zone *</label>
-                <input type="text" name="location_zone" placeholder="e.g., Jimeta, Yola" value={formData.location_zone} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+                <input type="text" name="location_zone" placeholder="e.g., Jimeta, Yola" value={formData.location_zone} onChange={handleChange} required disabled={isLoading} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white disabled:opacity-50" />
               </div>
             </div>
           </div>
@@ -263,13 +274,13 @@ export default function Register() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Phone Number *</label>
-                <input type="tel" name="phone_number" placeholder="08000000000" value={formData.phone_number} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+                <input type="tel" name="phone_number" placeholder="08000000000" value={formData.phone_number} onChange={handleChange} required disabled={isLoading} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white disabled:opacity-50" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">WhatsApp Number</label>
-                <input type="tel" name="whatsapp_number" placeholder={formData.whatsapp_same_as_phone ? 'Same as phone' : '08000000000'} value={formData.whatsapp_number} onChange={handleChange} disabled={formData.whatsapp_same_as_phone} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white disabled:opacity-50" />
+                <input type="tel" name="whatsapp_number" placeholder={formData.whatsapp_same_as_phone ? 'Same as phone' : '08000000000'} value={formData.whatsapp_number} onChange={handleChange} disabled={formData.whatsapp_same_as_phone || isLoading} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white disabled:opacity-50" />
                 <div className="flex items-center gap-2 mt-2">
-                  <input type="checkbox" id="whatsapp_same" name="whatsapp_same_as_phone" checked={formData.whatsapp_same_as_phone} onChange={handleChange} className="w-4 h-4 text-brand-blue rounded border-slate-300" />
+                  <input type="checkbox" id="whatsapp_same" name="whatsapp_same_as_phone" checked={formData.whatsapp_same_as_phone} onChange={handleChange} disabled={isLoading} className="w-4 h-4 text-brand-blue rounded border-slate-300 disabled:opacity-50" />
                   <label htmlFor="whatsapp_same" className="text-sm text-slate-600 cursor-pointer">Same as phone number</label>
                 </div>
               </div>
@@ -282,26 +293,26 @@ export default function Register() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Contact Name *</label>
-                <input type="text" name="contact_person_name" placeholder="Full Name" value={formData.contact_person_name} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+                <input type="text" name="contact_person_name" placeholder="Full Name" value={formData.contact_person_name} onChange={handleChange} required disabled={isLoading} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white disabled:opacity-50" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Relationship *</label>
-                <input type="text" name="contact_person_relation" placeholder="e.g., Parent, Sibling" value={formData.contact_person_relation} onChange={handleChange} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+                <input type="text" name="contact_person_relation" placeholder="e.g., Parent, Sibling" value={formData.contact_person_relation} onChange={handleChange} required disabled={isLoading} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white disabled:opacity-50" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">Contact Phone</label>
-                <input type="tel" name="contact_person_phone" placeholder="08000000000" value={formData.contact_person_phone} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white" />
+                <input type="tel" name="contact_person_phone" placeholder="08000000000" value={formData.contact_person_phone} onChange={handleChange} disabled={isLoading} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-brand-blue transition-colors bg-slate-50 focus:bg-white disabled:opacity-50" />
               </div>
             </div>
           </div>
 
           <button 
             type="submit" 
-            disabled={isLoading || isUploadingPhoto}
+            disabled={isLoading}
             className={`w-full text-white py-4 rounded-xl font-bold transition-colors shadow-lg flex items-center justify-center gap-2 mt-4 
-              ${(isLoading || isUploadingPhoto) ? 'bg-emerald-400 cursor-not-allowed shadow-none' : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30'}`}
+              ${isLoading ? 'bg-emerald-400 cursor-not-allowed shadow-none' : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30'}`}
           >
-            {isLoading ? <><Loader2 size={20} className="animate-spin"/> Creating Profile...</> : 'Complete Registration'}
+            {isLoading ? <><Loader2 size={20} className="animate-spin"/> {loadingText}</> : 'Complete Registration'}
           </button>
         </form>
 

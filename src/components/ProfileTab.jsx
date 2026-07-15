@@ -65,10 +65,10 @@ export default function ProfileTab({ userData }) {
     setStatusMsg(null);
 
     try {
-      // 1. Get signature from your backend
-      const sigResponse = await secureFetch('/api/users/generate-upload-signature');
+      // 1. Get signature from your backend (NOW PASSING THE ID!)
+      const sigResponse = await secureFetch(`/api/users/generate-upload-signature?identifier=${userData.serial_number}`);
       if (!sigResponse.ok) throw new Error("Could not connect to secure upload server.");
-      const { timestamp, signature, folder, api_key, cloud_name } = await sigResponse.json();
+      const { timestamp, signature, folder, api_key, cloud_name, public_id } = await sigResponse.json();
 
       // 2. Upload directly to Cloudinary
       const formData = new FormData();
@@ -77,6 +77,7 @@ export default function ProfileTab({ userData }) {
       formData.append('timestamp', timestamp);
       formData.append('signature', signature);
       formData.append('folder', folder);
+      formData.append('public_id', public_id); // NEW: Forces our custom naming convention!
 
       const cloudinaryRes = await fetch(`https://api.cloudinary.com/v1_1/${cloud_name}/image/upload`, {
         method: 'POST',

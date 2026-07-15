@@ -97,8 +97,8 @@ export default function ClaimProfile() {
 
       // 1. If photo exists, upload to Cloudinary first
       if (photoFile) {
-        // Get Signature from FastAPI
-        const sigRes = await fetch(`${API_BASE}/api/users/generate-upload-signature`);
+        // Fetch Signature from FastAPI (NOW PASSING THE SERIAL NUMBER!)
+        const sigRes = await fetch(`${API_BASE}/api/users/generate-upload-signature?identifier=${serialNumber}`);
         if (!sigRes.ok) throw new Error('Failed to initiate secure upload.');
         const sigData = await sigRes.json();
 
@@ -109,6 +109,7 @@ export default function ClaimProfile() {
         formData.append('timestamp', sigData.timestamp);
         formData.append('signature', sigData.signature);
         formData.append('folder', sigData.folder);
+        formData.append('public_id', sigData.public_id); // NEW: Forces our custom naming convention!
 
         const cloudRes = await fetch(`https://api.cloudinary.com/v1_1/${sigData.cloud_name}/image/upload`, {
           method: 'POST',
