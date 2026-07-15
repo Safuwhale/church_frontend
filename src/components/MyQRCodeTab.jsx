@@ -35,30 +35,30 @@ export default function MyQRCodeTab({ userData }) {
       {/* Self-Scanner Overlay */}
       {isScanning && <SelfScanner onClose={() => setIsScanning(false)} />}
 
-      {/* BANNER */}
-      <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-6 md:p-8 rounded-3xl border border-slate-700 shadow-lg text-white relative overflow-hidden">
-        <div className="absolute -right-10 -top-10 opacity-10 pointer-events-none">
-          <Camera size={200} />
+      {/* SLEEK BANNER (Reduced border radius to rounded-2xl) */}
+      <div className="max-w-md mx-auto bg-gradient-to-br from-slate-900 to-slate-800 p-5 sm:p-6 rounded-2xl border border-slate-700 shadow-lg text-white relative overflow-hidden">
+        {/* Decorative background icon */}
+        <div className="absolute -right-4 -top-4 opacity-10 pointer-events-none">
+          <Camera size={100} />
         </div>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <h3 className="font-display text-2xl font-bold mb-2">Scan Service QR code</h3>
-            <p className="text-slate-300 max-w-md text-sm leading-relaxed">
-              Skip the line. Tap the green button to open your camera and scan the service qr code to instantly check yourself in.
-            </p>
-          </div>
+        
+        {/* Compact Content */}
+        <div className="relative z-10 flex items-center justify-between gap-4">
+          <h3 className="font-display text-lg sm:text-xl font-bold leading-tight">
+            Scan Service<br />QR Code
+          </h3>
           <button 
             onClick={handleSelfServiceScan}
-            className="flex items-center justify-center gap-3 px-8 py-4 bg-emerald-500 text-emerald-950 rounded-xl font-bold hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-emerald-500 text-emerald-950 rounded-xl font-bold hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 active:scale-95 shrink-0"
           >
-            <Camera size={22} />
+            <Camera size={20} />
             Scan 
           </button>
         </div>
       </div>
 
       {/* WALLET CARD */}
-      <div className="max-w-md mx-auto mt-8">
+      <div className="max-w-md mx-auto">
         <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col items-center text-center relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-32 bg-slate-900"></div>
           
