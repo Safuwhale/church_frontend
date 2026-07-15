@@ -20,11 +20,21 @@ export default function SelfScanner({ onClose }) {
     if (isProcessingRef.current || !result || !result[0]?.rawValue) return;
 
     isProcessingRef.current = true;
-    const serviceId = result[0].rawValue;
+    const scannedValue = result[0].rawValue.trim();
+
+    // STRICT GUARD: Check if the scanned value is a valid UUID
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    
+    if (!uuidRegex.test(scannedValue)) {
+      alert("Invalid QR Code! Please point your camera at the official printed Service QR Code.");
+      setScannerKey((key) => key + 1);
+      isProcessingRef.current = false;
+      return;
+    }
 
     try {
       const { response, data } = await submitAttendanceCheckIn('/api/attendance/self-checkin', {
-        service_id: serviceId,
+        service_id: scannedValue,
         check_in_method: 'SELF_SCAN'
       });
 
