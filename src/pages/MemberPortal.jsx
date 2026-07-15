@@ -65,19 +65,18 @@ export default function MemberPortal() {
       setActiveTab={setActiveTab}
       userData={userData}
     >
-      <div className="p-6">
-        {activeTab === 'qr' && userData && (
-          <MyQRCodeTab userData={userData} />
-        )}
+      {/* REMOVED the <div className="p-6"> wrapper here to prevent double-padding on mobile! */}
+      {activeTab === 'qr' && userData && (
+        <MyQRCodeTab userData={userData} />
+      )}
 
-        {activeTab === 'cell' && userData && (
-          <MemberCellGroupTab userData={userData} />
-        )}
-        
-        {activeTab === 'profile' && userData && (
-          <ProfileTab userData={userData} />
-        )}
-      </div>
+      {activeTab === 'cell' && userData && (
+        <MemberCellGroupTab userData={userData} />
+      )}
+      
+      {activeTab === 'profile' && userData && (
+        <ProfileTab userData={userData} />
+      )}
     </DashboardLayout>
   );
 }
