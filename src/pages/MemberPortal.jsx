@@ -53,7 +53,7 @@ export default function MemberPortal() {
 
   // Menu configuration for the portal navigation
   const menuItems = [
-    { id: 'qr', label: 'My QR', icon: QrCode },
+    { id: 'qr', label: 'My QR Code', icon: QrCode },
     { id: 'cell', label: 'My Cell Group', icon: Users },
     { id: 'profile', label: 'Profile Settings', icon: Settings },
   ];
