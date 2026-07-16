@@ -22,6 +22,10 @@ export default function ProfileTab({ userData }) {
   const fileInputRef = useRef(null);
   const [profileData, setProfileData] = useState(() => buildProfileState(userData));
   
+  // NEW: Local Photo States
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  
   const [passwordData, setPasswordData] = useState({
     current_password: '',
     new_password: '',
@@ -34,8 +38,8 @@ export default function ProfileTab({ userData }) {
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
-  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
+  const [loadingText, setLoadingText] = useState('');
 
   useEffect(() => {
     setProfileData(buildProfileState(userData));
@@ -50,8 +54,8 @@ export default function ProfileTab({ userData }) {
     setPasswordData({ ...passwordData, [e.target.name]: e.target.value });
   };
 
-  // --- CLOUDINARY UPLOAD LOGIC ---
-  const handlePhotoUpload = async (e) => {
+  // --- LOCAL PREVIEW ONLY ---
+  const handlePhotoSelection = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -60,64 +64,65 @@ export default function ProfileTab({ userData }) {
       return;
     }
 
-    setIsUploadingPhoto(true);
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
     setStatusMsg(null);
-
-    try {
-      const sigResponse = await secureFetch(`/api/users/generate-upload-signature?identifier=${userData.serial_number}`);
-      if (!sigResponse.ok) throw new Error("Could not connect to secure upload server.");
-      const { timestamp, signature, folder, api_key, cloud_name, public_id } = await sigResponse.json();
-
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('api_key', api_key);
-      formData.append('timestamp', timestamp);
-      formData.append('signature', signature);
-      formData.append('folder', folder);
-      formData.append('public_id', public_id);
-
-      const cloudinaryRes = await fetch(`https://api.cloudinary.com/v1_1/${cloud_name}/image/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      const cloudinaryData = await cloudinaryRes.json();
-      
-      if (!cloudinaryRes.ok) {
-        throw new Error(cloudinaryData.error?.message || "Upload failed");
-      }
-
-      setProfileData(prev => ({ ...prev, profile_photo_url: cloudinaryData.secure_url }));
-      setStatusMsg({ type: 'success', text: 'Photo uploaded! Remember to save your profile.' });
-      
-    } catch (err) {
-      console.error(err);
-      setStatusMsg({ type: 'error', text: 'Failed to upload photo. Please try again.' });
-    } finally {
-      setIsUploadingPhoto(false);
-    }
   };
 
+  // --- SAVE PROFILE & UPLOAD PHOTO ---
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     setStatusMsg(null);
     setIsSavingProfile(true);
+    setLoadingText('Saving details...');
 
     try {
+      let finalPhotoUrl = profileData.profile_photo_url;
+
+      // 1. Upload to Cloudinary FIRST (Only if a new photo was selected)
+      if (photoFile) {
+        setLoadingText('Uploading photo...');
+        const sigResponse = await secureFetch(`/api/users/generate-upload-signature?identifier=${userData.serial_number}`);
+        if (!sigResponse.ok) throw new Error("Could not connect to secure upload server.");
+        
+        const { timestamp, signature, folder, api_key, cloud_name, public_id } = await sigResponse.json();
+
+        const formData = new FormData();
+        formData.append('file', photoFile);
+        formData.append('api_key', api_key);
+        formData.append('timestamp', timestamp);
+        formData.append('signature', signature);
+        formData.append('folder', folder);
+        formData.append('public_id', public_id);
+
+        const cloudinaryRes = await fetch(`https://api.cloudinary.com/v1_1/${cloud_name}/image/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        const cloudinaryData = await cloudinaryRes.json();
+        if (!cloudinaryRes.ok) throw new Error("Image upload failed");
+        
+        finalPhotoUrl = cloudinaryData.secure_url;
+      }
+
+      setLoadingText('Updating profile...');
+
+      // 2. Prepare Payload
       const payload = {
         ...profileData,
+        profile_photo_url: finalPhotoUrl, // Attach the new URL!
         whatsapp_number: profileData.whatsapp_same_as_phone ? profileData.phone_number : profileData.whatsapp_number,
       };
 
-      // --- NEW CLEANUP LOGIC ---
-      // Pydantic STRICTLY expects `null` for empty optional fields (like Dates and Enums).
-      // This loop safely transforms all empty strings `""` into `null` before sending.
+      // 3. Strict Cleanup Loop
       Object.keys(payload).forEach(key => {
         if (payload[key] === "") {
           payload[key] = null;
         }
       });
 
+      // 4. Save to Database
       const response = await secureFetch('/api/users/me', {
         method: 'PUT',
         body: JSON.stringify(payload)
@@ -133,11 +138,17 @@ export default function ProfileTab({ userData }) {
         localStorage.setItem('horyc_name', data.first_name);
       }
 
+      // Cleanup local states on success
+      setProfileData(prev => ({ ...prev, profile_photo_url: finalPhotoUrl }));
+      setPhotoFile(null);
+      setPhotoPreview(null);
+      
       setStatusMsg({ type: 'success', text: 'Profile updated successfully!' });
-    } catch {
-      setStatusMsg({ type: 'error', text: 'Failed to update profile. Please try again.' });
+    } catch (err) {
+      setStatusMsg({ type: 'error', text: err.message || 'Failed to update profile. Please try again.' });
     } finally {
       setIsSavingProfile(false);
+      setLoadingText('');
       setTimeout(() => setStatusMsg(null), 4000);
     }
   };
@@ -226,39 +237,34 @@ export default function ProfileTab({ userData }) {
           {/* PHOTO UPLOAD SECTION */}
           <div className="flex flex-col sm:flex-row items-center gap-6 mb-8 bg-slate-50 p-6 rounded-2xl border border-slate-100">
             <div className="relative w-24 h-24 rounded-full bg-slate-200 border-4 border-white shadow-md flex-shrink-0 flex items-center justify-center overflow-hidden">
-              {profileData.profile_photo_url ? (
-                <img src={profileData.profile_photo_url} alt="Profile" className="w-full h-full object-cover" />
+              {photoPreview || profileData.profile_photo_url ? (
+                <img src={photoPreview || profileData.profile_photo_url} alt="Profile" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-3xl font-display font-bold text-slate-400">
                   {profileData.first_name ? profileData.first_name.charAt(0) : '?'}
                 </span>
               )}
-              {isUploadingPhoto && (
-                <div className="absolute inset-0 bg-white/70 flex items-center justify-center backdrop-blur-sm">
-                  <Loader2 className="animate-spin text-brand-blue" size={24} />
-                </div>
-              )}
             </div>
             
             <div className="text-center sm:text-left">
               <h4 className="font-bold text-slate-800 text-sm mb-1">Profile Photo</h4>
-              <p className="text-xs text-slate-500 mb-3 max-w-xs">Upload a clear photo of your face for your digital ID card. Max size 5MB.</p>
+              <p className="text-xs text-slate-500 mb-3 max-w-xs">Upload a clear photo of your face. Max size 5MB.</p>
               
               <input 
                 type="file" 
                 accept="image/*" 
                 ref={fileInputRef}
-                onChange={handlePhotoUpload}
+                onChange={handlePhotoSelection}
                 className="hidden" 
               />
               <button 
                 type="button" 
-                disabled={isUploadingPhoto}
+                disabled={isSavingProfile}
                 onClick={() => fileInputRef.current?.click()}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-bold hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm disabled:opacity-50"
               >
                 <Camera size={16} />
-                {profileData.profile_photo_url ? 'Change Photo' : 'Upload Photo'}
+                {photoPreview || profileData.profile_photo_url ? 'Change Photo' : 'Upload Photo'}
               </button>
             </div>
           </div>
@@ -327,7 +333,7 @@ export default function ProfileTab({ userData }) {
 
           <div className="flex justify-end pt-8">
             <button type="submit" disabled={isSavingProfile} className={`px-8 py-4 rounded-xl font-bold transition-colors shadow-lg flex items-center justify-center gap-2 text-white ${isSavingProfile ? 'bg-brand-blue/70 cursor-not-allowed shadow-none' : 'bg-brand-blue hover:bg-blue-700 shadow-blue-600/30'}`}>
-              {isSavingProfile ? <><Loader2 size={20} className="animate-spin" /> Saving Changes...</> : (
+              {isSavingProfile ? <><Loader2 size={20} className="animate-spin" /> {loadingText}</> : (
                 <>
                   <Save size={20} />
                   Update Profile
