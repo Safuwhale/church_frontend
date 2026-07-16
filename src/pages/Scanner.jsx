@@ -159,7 +159,7 @@ export default function UsherScanner() {
           <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-display font-bold text-slate-900 text-sm">
             H
           </div>
-          <span className="font-display font-bold text-white tracking-wider">HORYC Attendance</span>
+          <span className="font-display font-bold text-white tracking-wider">HORYC</span>
         </div>
         
         <div className="flex items-center gap-3">
