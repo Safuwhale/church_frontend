@@ -237,7 +237,7 @@ export default function ClaimProfile() {
               <p className="text-xl font-bold tracking-widest text-brand-blue">{maskedName}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-brand-dark mb-1">Type your full name to verify</label>
+              <label className="block text-sm font-medium text-brand-dark mb-1">Type your name to verify</label>
               <input 
                 type="text" 
                 value={typedName}
@@ -367,7 +367,7 @@ export default function ClaimProfile() {
             </div>
 
             <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl">
-              <p className="text-sm text-amber-700 font-medium">Keep this password safe. You will use it to log in and access your QR pass.</p>
+              <p className="text-sm text-amber-700 font-medium">Keep this password safe. You will use it to log in and access your QR Code.</p>
             </div>
 
             <Link to="/login" className="w-full bg-brand-dark hover:bg-slate-800 text-white py-3.5 rounded-xl font-medium transition-colors shadow-lg flex items-center justify-center gap-2 mt-6">
