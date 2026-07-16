@@ -43,7 +43,7 @@ export default function UsherDashboard() {
       <header className="max-w-4xl mx-auto flex items-center justify-between mb-10 pb-6 border-b border-slate-800">
         <div>
           <h1 className="text-3xl font-display font-bold">Usher Dashboard</h1>
-          <p className="text-slate-400 mt-1">Select an active service to begin scanning</p>
+          <p className="text-slate-400 mt-1">Select an active service to start scanning</p>
         </div>
         <button 
           onClick={() => { localStorage.removeItem('horyc_token'); localStorage.removeItem('horyc_role'); localStorage.removeItem('horyc_name'); localStorage.removeItem('horyc_id'); navigate('/usher-dashboard', { replace: true }); window.location.reload(); }}
