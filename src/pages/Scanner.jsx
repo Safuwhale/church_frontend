@@ -159,7 +159,7 @@ export default function UsherScanner() {
           <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-display font-bold text-slate-900 text-sm">
             H
           </div>
-          <span className="font-display font-bold text-white tracking-wider">HORYC Gate</span>
+          <span className="font-display font-bold text-white tracking-wider">HORYC Attendance</span>
         </div>
         
         <div className="flex items-center gap-3">
@@ -193,7 +193,7 @@ export default function UsherScanner() {
       <main className="flex-1 flex flex-col p-4 md:p-6 gap-6 max-w-2xl mx-auto w-full h-full overflow-hidden">
         
         <div className="text-center shrink-0">
-          <h1 className="font-display text-2xl md:text-3xl font-bold mb-2">Gate Check-in</h1>
+          <h1 className="font-display text-2xl md:text-3xl font-bold mb-2">Service Check-in</h1>
           
           <div className="flex items-center justify-center gap-2 mt-4 bg-slate-800 p-1 rounded-xl w-fit mx-auto border border-slate-700">
             <button 
@@ -240,7 +240,7 @@ export default function UsherScanner() {
             <div className="w-full h-full p-4 md:p-6 flex flex-col">
               {!selectedMember ? (
                 <>
-                  <h3 className="text-lg font-bold mb-4 text-center shrink-0">Lookup Member</h3>
+                  <h3 className="text-lg font-bold mb-4 text-center shrink-0">Search Member</h3>
                   
                   {/* Search Bar sits at the top */}
                   <div className="relative shrink-0 z-10">
