@@ -10,6 +10,7 @@ import DirectoryTab from '../components/DirectoryTab';
 import CellGroupTab from '../components/CellGroupTab';
 import AttendanceRegistryTab from '../components/AttendanceRegistryTab';
 import MyQRCodeTab from '../components/MyQRCodeTab'; // Added the tab component
+import { secureFetch } from '../api/api';
 
 export default function AdminPortal() {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ export default function AdminPortal() {
   useEffect(() => {
     const token = localStorage.getItem('horyc_token');
     const role = localStorage.getItem('horyc_role');
-    
+
     if (!token) {
       navigate('/login');
       return;
@@ -30,13 +31,28 @@ export default function AdminPortal() {
       return;
     }
 
-    setTimeout(() => {
-      setUserData({
-        first_name: localStorage.getItem('horyc_name') || 'Admin',
-        serial_number: localStorage.getItem('horyc_id') || 'HORYC-000',
-        role: role,
-      });
-    }, 500);
+    const loadProfile = async () => {
+      try {
+        const response = await secureFetch('/api/users/me');
+
+        if (!response.ok) {
+          throw new Error('Failed to load profile.');
+        }
+
+        const data = await response.json();
+        setUserData(data);
+      } catch (error) {
+        console.error('Error loading admin profile:', error);
+        // Fallback so the UI doesn't hang forever; should rarely fire
+        setUserData({
+          first_name: localStorage.getItem('horyc_name') || 'Admin',
+          serial_number: localStorage.getItem('horyc_id') || 'HORYC-000',
+          role: role,
+        });
+      }
+    };
+
+    loadProfile();
   }, [navigate]);
 
   // Inserted the QR Pass into the Admin menu
@@ -69,7 +85,7 @@ export default function AdminPortal() {
       {activeTab === 'cells' && <CellGroupTab />}
       {activeTab === 'directory' && <DirectoryTab />}
       {activeTab === 'registry' && <AttendanceRegistryTab />}
-      {activeTab === 'profile' && <ProfileTab userData={userData} />}
+      {activeTab === 'profile' && <ProfileTab userData={userData} setUserData={setUserData} />}
     </DashboardLayout>
   );
 }
