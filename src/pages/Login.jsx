@@ -38,16 +38,27 @@ export default function Login() {
         throw new Error(data.detail || 'Invalid phone number or password');
       }
 
+      const meRes = await fetch(`${API_BASE}/api/users/me`, {
+        headers: {
+          Authorization: `Bearer ${data.access_token}`,
+        },
+        credentials: 'include',
+      });
+
+      if (!meRes.ok) {
+        throw new Error('Signed in, but could not load your profile.');
+      }
+
+      const user = await meRes.json();
+
       setAuthState({
         accessToken: data.access_token,
-        role: data.user?.role || 'member',
-        user: data.user || null,
+        role: user.role || 'member',
+        user,
         hydrated: true,
       });
-      
-      // Route them based on the newly mapped role!
-      // Route them based on their specific role
-      const userRole = data.user?.role || 'member';
+
+      const userRole = user.role || 'member';
       
       if (userRole === 'hod') {
         navigate('/admin');
