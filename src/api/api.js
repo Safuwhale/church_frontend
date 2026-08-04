@@ -4,6 +4,7 @@
  * Features automatic token refresh and centralized error handling.
  */
 
+import { clearAuthState, getAuthState, setAuthState } from '../store/authStore';
 const API_BASE = import.meta.env.VITE_API_BASE_URL ;
 /**
  * Secure fetch wrapper.
@@ -12,15 +13,20 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ;
  * @param {Object} options - Standard fetch options
  */
 export const secureFetch = async (url, options = {}) => {
-  // 1. Retrieve the current access token from local storage
-  let token = localStorage.getItem('horyc_token');
+  const { accessToken } = getAuthState();
+  let token = accessToken;
 
   // 2. Prepare headers with Authorization
   options.headers = {
     ...options.headers,
-    'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json'
   };
+
+  if (token) {
+    options.headers.Authorization = `Bearer ${token}`;
+  }
+
+  options.credentials = 'include';
 
   // 3. Execute the initial request
   let response = await fetch(`${API_BASE}${url}`, options);
@@ -38,20 +44,20 @@ export const secureFetch = async (url, options = {}) => {
         const data = await refreshRes.json();
         
         // Update the token in storage
-        localStorage.setItem('horyc_token', data.access_token);
+        setAuthState({ accessToken: data.access_token, hydrated: true });
         
         // Retry the original request with the newly acquired token
-        options.headers['Authorization'] = `Bearer ${data.access_token}`;
+        options.headers.Authorization = `Bearer ${data.access_token}`;
         response = await fetch(`${API_BASE}${url}`, options);
       } else {
         // If refresh fails (cookie expired/invalid), force logout
         console.warn("Session expired. Redirecting to login.");
-        localStorage.clear();
+        clearAuthState();
         window.location.href = '/login';
       }
     } catch (error) {
       console.error("Critical error during token refresh:", error);
-      localStorage.clear();
+      clearAuthState();
       window.location.href = '/login';
     }
   }

@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { secureFetch } from '../api/api';
 import { Calendar, Clock, QrCode, LogOut, Activity } from 'lucide-react';
+import { clearAuthState, getAuthState } from '../store/authStore';
 
 export default function UsherDashboard() {
   const navigate = useNavigate();
@@ -15,9 +16,8 @@ export default function UsherDashboard() {
 
   useEffect(() => {
     // 1. Standard role check
-    const token = localStorage.getItem('horyc_token');
-    const role = localStorage.getItem('horyc_role');
-    if (!token || (role !== 'usher' && role !== 'hod')) navigate('/login');
+    const auth = getAuthState();
+    if (!auth.accessToken || (auth.role && auth.role !== 'usher' && auth.role !== 'hod')) navigate('/login');
 
     // 2. Fetch available services
     const fetchServices = async () => {
@@ -46,7 +46,15 @@ export default function UsherDashboard() {
           <p className="text-slate-400 mt-1">Select an active service to start scanning</p>
         </div>
         <button 
-          onClick={() => { localStorage.removeItem('horyc_token'); localStorage.removeItem('horyc_role'); localStorage.removeItem('horyc_name'); localStorage.removeItem('horyc_id'); navigate('/usher-dashboard', { replace: true }); window.location.reload(); }}
+          onClick={async () => { 
+            try {
+              await secureFetch('/api/users/logout', { method: 'POST' });
+            } catch {
+              // ignore
+            }
+            clearAuthState();
+            navigate('/login', { replace: true });
+          }}
           className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-400 rounded-xl hover:bg-red-500/20 transition-colors"
         >
           <LogOut size={18} />

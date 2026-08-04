@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
+import { setAuthState } from '../store/authStore';
 
 export default function Login() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -21,6 +22,7 @@ export default function Login() {
     try {
       const response = await fetch(`${API_BASE}/api/users/login`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -36,19 +38,12 @@ export default function Login() {
         throw new Error(data.detail || 'Invalid phone number or password');
       }
 
-      // THE FIX: We target data.user to pull the nested details from FastAPI
-      localStorage.setItem('horyc_token', data.access_token);
-      
-      // Ensure we safely check if data.user exists before pulling properties
-      if (data.user) {
-        localStorage.setItem('horyc_role', data.user.role || 'member');
-        localStorage.setItem('horyc_name', data.user.first_name || 'Member');
-        localStorage.setItem('horyc_id', data.user.serial_number || 'HORYC-000');
-      } else {
-        // Fallbacks just in case the backend payload shape changes
-        localStorage.setItem('horyc_role', 'member');
-        localStorage.setItem('horyc_name', 'Member');
-      }
+      setAuthState({
+        accessToken: data.access_token,
+        role: data.user?.role || 'member',
+        user: data.user || null,
+        hydrated: true,
+      });
       
       // Route them based on the newly mapped role!
       // Route them based on their specific role

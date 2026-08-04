@@ -11,6 +11,7 @@ import CellGroupTab from '../components/CellGroupTab';
 import AttendanceRegistryTab from '../components/AttendanceRegistryTab';
 import MyQRCodeTab from '../components/MyQRCodeTab'; // Added the tab component
 import { secureFetch } from '../api/api';
+import { getAuthState } from '../store/authStore';
 
 export default function AdminPortal() {
   const navigate = useNavigate();
@@ -18,15 +19,14 @@ export default function AdminPortal() {
   const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
-    const token = localStorage.getItem('horyc_token');
-    const role = localStorage.getItem('horyc_role');
+    const auth = getAuthState();
 
-    if (!token) {
+    if (!auth.accessToken) {
       navigate('/login');
       return;
     }
 
-    if (role !== 'hod') {
+    if (auth.role && auth.role !== 'hod') {
       navigate('/portal');
       return;
     }
@@ -45,9 +45,9 @@ export default function AdminPortal() {
         console.error('Error loading admin profile:', error);
         // Fallback so the UI doesn't hang forever; should rarely fire
         setUserData({
-          first_name: localStorage.getItem('horyc_name') || 'Admin',
-          serial_number: localStorage.getItem('horyc_id') || 'HORYC-000',
-          role: role,
+          first_name: auth.user?.first_name || 'Admin',
+          serial_number: auth.user?.serial_number || 'HORYC-000',
+          role: auth.role || 'hod',
         });
       }
     };

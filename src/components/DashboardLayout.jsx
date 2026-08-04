@@ -1,16 +1,21 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, ScanLine, Menu, ChevronRight, X } from 'lucide-react';
+import { clearAuthState } from '../store/authStore';
+import { secureFetch } from '../api/api';
 
 export default function DashboardLayout({ userData, menuItems, activeTab, setActiveTab, children }) {
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const handleLogout = () => {
-    localStorage.removeItem('horyc_token');
-    localStorage.removeItem('horyc_role');
-    localStorage.removeItem('horyc_name');
-    localStorage.removeItem('horyc_id');
+  const handleLogout = async () => {
+    try {
+      await secureFetch('/api/users/logout', { method: 'POST' });
+    } catch {
+      // ignore network failure and clear client state anyway
+    }
+
+    clearAuthState();
     navigate('/login');
   };
 
