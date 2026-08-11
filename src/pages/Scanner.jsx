@@ -4,21 +4,21 @@ import { UserCheck, CheckCircle2, AlertCircle, Volume2, VolumeX, Keyboard, QrCod
 import { useNavigate, useParams } from 'react-router-dom';
 import { secureFetch } from '../api/api';
 import { submitAttendanceCheckIn } from '../api/attendance';
+import { getAuthState } from '../store/authStore';
 
 export default function UsherScanner() {
   const navigate = useNavigate();
   const { id: serviceId } = useParams();
 
   useEffect(() => {
-    const token = localStorage.getItem('horyc_token');
-    const role = localStorage.getItem('horyc_role');
-    
-    if (!token) {
+    const auth = getAuthState();
+
+    if (!auth.accessToken) {
       navigate('/login');
       return;
     }
 
-    if (role !== 'usher' && role !== 'hod') {
+    if (auth.role && auth.role !== 'usher' && auth.role !== 'hod') {
       navigate('/portal');
       return;
     }
