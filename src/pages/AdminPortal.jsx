@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, Database, QrCode, Users } from 'lucide-react'; // Added QrCode
+import { LayoutDashboard, BookOpen, Database, QrCode, Users, UserPlus } from 'lucide-react';
 import { Settings } from 'lucide-react';
 
 import ProfileTab from '../components/ProfileTab';
@@ -10,6 +10,7 @@ import DirectoryTab from '../components/DirectoryTab';
 import CellGroupTab from '../components/CellGroupTab';
 import AttendanceRegistryTab from '../components/AttendanceRegistryTab';
 import MyQRCodeTab from '../components/MyQRCodeTab'; // Added the tab component
+import AddMemberTab from '../components/AddMemberTab';
 import { secureFetch } from '../api/api';
 import { getAuthState } from '../store/authStore';
 
@@ -26,7 +27,7 @@ export default function AdminPortal() {
       return;
     }
 
-    if (auth.role && auth.role !== 'hod') {
+    if (auth.role && !['hod', 'admin'].includes(auth.role)) {
       navigate('/portal');
       return;
     }
@@ -61,6 +62,7 @@ export default function AdminPortal() {
     { id: 'qr', label: 'My QR', icon: QrCode }, 
     { id: 'cells', label: 'Cell Groups', icon: Users },
     { id: 'directory', label: 'Members Directory', icon: BookOpen },
+    { id: 'add-member', label: 'Add Member', icon: UserPlus },
     { id: 'registry', label: 'Attendance Registry', icon: Database },
     { id: 'profile', label: 'Profile Settings', icon: Settings },
   ];
@@ -84,6 +86,7 @@ export default function AdminPortal() {
       {activeTab === 'qr' && <MyQRCodeTab userData={userData} />} {/* Added rendering logic */}
       {activeTab === 'cells' && <CellGroupTab />}
       {activeTab === 'directory' && <DirectoryTab />}
+      {activeTab === 'add-member' && <AddMemberTab />}
       {activeTab === 'registry' && <AttendanceRegistryTab />}
       {activeTab === 'profile' && <ProfileTab userData={userData} setUserData={setUserData} />}
     </DashboardLayout>

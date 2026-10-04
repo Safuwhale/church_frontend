@@ -6,6 +6,8 @@
 
 import { clearAuthState, getAuthState, setAuthState } from '../store/authStore';
 const API_BASE = import.meta.env.VITE_API_BASE_URL ;
+
+export const getCsrfToken = () => document.cookie.split('; ').find((entry) => entry.startsWith('csrf_token='))?.split('=').slice(1).join('=') || '';
 /**
  * Secure fetch wrapper.
  * Automatically injects the Bearer token and attempts token refresh on 401 errors.
@@ -17,14 +19,18 @@ export const secureFetch = async (url, options = {}) => {
   let token = accessToken;
 
   // 2. Prepare headers with Authorization
-  options.headers = {
-    ...options.headers,
-    'Content-Type': 'application/json'
-  };
+  options.headers = { ...options.headers };
+  if (!(options.body instanceof FormData)) {
+    options.headers['Content-Type'] = 'application/json';
+  } else {
+    delete options.headers['Content-Type'];
+  }
 
   if (token) {
     options.headers.Authorization = `Bearer ${token}`;
   }
+  const csrfToken = getCsrfToken();
+  if (csrfToken) options.headers['X-CSRF-Token'] = csrfToken;
 
   options.credentials = 'include';
 
@@ -37,7 +43,8 @@ export const secureFetch = async (url, options = {}) => {
       // Attempt to obtain a new access token using the refresh_token cookie
       const refreshRes = await fetch(`${API_BASE}/api/users/refresh`, { 
         method: 'POST',
-        credentials: 'include'
+        credentials: 'include',
+        headers: { 'X-CSRF-Token': getCsrfToken() },
       });
       
       if (refreshRes.ok) {

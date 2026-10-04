@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { secureFetch } from '../api/api';
-import { BookOpen, Download, Calendar, Users, ArrowUpRight, RefreshCw, X, Trash2, Search, ChevronLeft, ChevronRight, FileText, FileSpreadsheet } from 'lucide-react';
+import { BookOpen, Calendar, Users, ArrowUpRight, RefreshCw, X, Trash2, Search, ChevronLeft, ChevronRight, FileText, FileSpreadsheet, Tags, Plus } from 'lucide-react';
 import AttendanceDots from './AttendanceDots';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -18,6 +18,8 @@ export default function AttendanceRegistryTab() {
   // Pagination State for the Modal
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+  const [tags, setTags] = useState([]);
+  const [newTagName, setNewTagName] = useState('');
 
   const fetchServices = async () => {
     setIsLoading(true);
@@ -59,9 +61,32 @@ export default function AttendanceRegistryTab() {
     }
   };
 
+  const fetchTags = async () => {
+    const response = await secureFetch('/api/tags');
+    if (response.ok) setTags(await response.json());
+  };
+
   useEffect(() => {
     void fetchServices();
+    void fetchTags();
   }, []);
+
+  const createTag = async (event) => {
+    event.preventDefault();
+    if (!newTagName.trim()) return;
+    const response = await secureFetch('/api/tags', { method: 'POST', body: JSON.stringify({ name: newTagName.trim() }) });
+    const data = await response.json();
+    if (!response.ok) { alert(data.detail || 'Could not create tag.'); return; }
+    setNewTagName('');
+    await fetchTags();
+  };
+
+  const archiveTag = async (tag) => {
+    if (!window.confirm(`Archive the tag "${tag.name}"?`)) return;
+    const response = await secureFetch(`/api/tags/${tag.id}`, { method: 'DELETE' });
+    if (!response.ok) { const data = await response.json(); alert(data.detail || 'Could not archive tag.'); return; }
+    await fetchTags();
+  };
 
   // Reset pagination when switching tabs or typing in search
   useEffect(() => {
@@ -279,6 +304,15 @@ export default function AttendanceRegistryTab() {
           </div>
         </div>
       </div>
+
+      {/* SECTION 3: Service Ledger */}
+      <section className="rounded-xl sm:rounded-2xl border border-indigo-100 bg-indigo-50/60 p-5 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div><h4 className="flex items-center gap-2 font-semibold text-slate-800"><Tags size={18} className="text-indigo-600" /> Member tags</h4><p className="mt-1 text-sm text-slate-500">Create labels such as in school or travelled, then assign them from a member profile.</p></div>
+          <form onSubmit={createTag} className="flex w-full gap-2 sm:w-auto"><input value={newTagName} onChange={(event) => setNewTagName(event.target.value)} placeholder="New tag name" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 sm:w-48" /><button className="inline-flex items-center gap-1 rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700"><Plus size={16} />Add</button></form>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">{tags.map((tag) => <span key={tag.id} className="inline-flex items-center gap-2 rounded-lg border border-indigo-100 bg-white px-3 py-1.5 text-sm text-slate-700">{tag.name}<button onClick={() => archiveTag(tag)} title={`Archive ${tag.name}`} className="text-slate-400 hover:text-red-600"><X size={14} /></button></span>)}{tags.length === 0 && <span className="text-sm text-slate-500">No tags created yet.</span>}</div>
+      </section>
 
       {/* SECTION 3: Service Ledger */}
       <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm overflow-hidden">

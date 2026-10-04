@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, Shield, User, Phone, RefreshCw, ChevronLeft, ChevronRight, MapPin, HeartPulse, X, ZoomIn, XCircle } from 'lucide-react';
+import { Search, Shield, User, Phone, RefreshCw, ChevronLeft, ChevronRight, MapPin, HeartPulse, X, ZoomIn, XCircle, Tags, Save } from 'lucide-react';
 import { secureFetch } from '../api/api';
 import AttendanceDots from './AttendanceDots';
 
@@ -32,6 +32,9 @@ export default function DirectoryTab() {
   // Modal State
   const [selectedMember, setSelectedMember] = useState(null);
   const [isPhotoExpanded, setIsPhotoExpanded] = useState(false);
+  const [availableTags, setAvailableTags] = useState([]);
+  const [selectedTagIds, setSelectedTagIds] = useState([]);
+  const [isSavingTags, setIsSavingTags] = useState(false);
 
   const fetchMembers = async () => {
     setIsLoading(true);
@@ -65,15 +68,39 @@ export default function DirectoryTab() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  useEffect(() => {
+    secureFetch('/api/tags').then(async (response) => {
+      if (response.ok) setAvailableTags(await response.json());
+    }).catch(() => {});
+  }, []);
+
   // Opens a member's detail modal, always starting with the photo collapsed.
   const openMember = (member) => {
     setIsPhotoExpanded(false);
     setSelectedMember(member);
+    setSelectedTagIds((member.tags || []).map((tagName) => availableTags.find((tag) => tag.name === tagName)?.id).filter(Boolean));
   };
 
   const closeModal = () => {
     setSelectedMember(null);
     setIsPhotoExpanded(false);
+  };
+
+  const saveTags = async () => {
+    if (!selectedMember) return;
+    setIsSavingTags(true);
+    try {
+      const response = await secureFetch(`/api/users/${selectedMember.id}/tags`, { method: 'PUT', body: JSON.stringify({ tag_ids: selectedTagIds }) });
+      if (!response.ok) throw new Error('Could not save member tags.');
+      const savedTags = await response.json();
+      const updated = { ...selectedMember, tags: savedTags.map((tag) => tag.name) };
+      setSelectedMember(updated);
+      setMembers((current) => current.map((member) => member.id === updated.id ? updated : member));
+    } catch (saveError) {
+      setError(saveError.message);
+    } finally {
+      setIsSavingTags(false);
+    }
   };
 
   const setRole = (id) => {
@@ -406,6 +433,16 @@ export default function DirectoryTab() {
                     <p className="font-semibold text-slate-800 text-sm sm:text-base break-words">{selectedMember.location_zone || 'Not specified'}</p>
                   </div>
                 </div>
+              </div>
+
+              {/* Emergency Contact */}
+              <div className="mt-3 sm:mt-4 rounded-xl sm:rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+                <div className="mb-3 flex items-center gap-2"><Tags size={17} className="text-indigo-600" /><p className="text-xs font-bold uppercase tracking-wider text-indigo-700">Member tags</p></div>
+                <div className="flex flex-wrap gap-2">
+                  {availableTags.map((tag) => <label key={tag.id} className="inline-flex items-center gap-2 rounded-lg border border-indigo-100 bg-white px-3 py-2 text-sm text-slate-700"><input type="checkbox" checked={selectedTagIds.includes(tag.id)} onChange={() => setSelectedTagIds((current) => current.includes(tag.id) ? current.filter((id) => id !== tag.id) : [...current, tag.id])} />{tag.name}</label>)}
+                  {availableTags.length === 0 && <p className="text-sm text-slate-500">Create tags in the attendance registry first.</p>}
+                </div>
+                <button onClick={saveTags} disabled={isSavingTags} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"><Save size={15} />{isSavingTags ? 'Saving...' : 'Save tags'}</button>
               </div>
 
               {/* Emergency Contact */}

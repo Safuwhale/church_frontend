@@ -8,8 +8,8 @@ import MemberPortal from './pages/MemberPortal';
 import AdminPortal from './pages/AdminPortal';
 import UsherDashboard from './pages/UsherDashboard';
 import Scanner from './pages/Scanner'; 
-import ClaimProfile from './pages/ClaimProfile';
 import { getAuthState, setAuthState, subscribeAuthState } from './store/authStore';
+import { getCsrfToken } from './api/api';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
@@ -34,7 +34,7 @@ function ProtectedRoute({ children, roles }) {
 export default function App() {
   useEffect(() => {
     const bootstrap = async () => {
-      const authRoutes = ['/login', '/register', '/claim-profile'];
+      const authRoutes = ['/login', '/register'];
       if (authRoutes.includes(window.location.pathname)) {
         setAuthState({ hydrated: true });
         return;
@@ -47,6 +47,7 @@ export default function App() {
         const refreshRes = await fetch(`${API_BASE}/api/users/refresh`, {
           method: 'POST',
           credentials: 'include',
+          headers: { 'X-CSRF-Token': getCsrfToken() },
         });
 
         if (!refreshRes.ok) {
@@ -85,7 +86,6 @@ export default function App() {
         {/* Auth Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/claim-profile" element={<ClaimProfile />} />
 
         {/* Dashboards & Portals */}
         <Route path="/portal" element={<ProtectedRoute roles={["member", "leader"]}><MemberPortal /></ProtectedRoute>} />
