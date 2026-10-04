@@ -35,6 +35,8 @@ export default function DirectoryTab() {
   const [availableTags, setAvailableTags] = useState([]);
   const [selectedTagIds, setSelectedTagIds] = useState([]);
   const [isSavingTags, setIsSavingTags] = useState(false);
+  const memberInitials = (member) => `${member.first_name?.charAt(0) || ''}${member.last_name?.charAt(0) || ''}` || '?';
+  const memberName = (member) => [member.first_name, member.last_name].filter(Boolean).join(' ');
 
   const fetchMembers = async () => {
     setIsLoading(true);
@@ -218,11 +220,11 @@ export default function DirectoryTab() {
                         <img src={member.profile_photo_url} alt="Profile" className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-slate-200 flex-shrink-0" />
                       ) : (
                         <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-xs sm:text-sm ${roleBadgeStyles(member.role)}`}>
-                          {member.first_name.charAt(0)}{member.last_name.charAt(0)}
+                          {memberInitials(member)}
                         </div>
                       )}
                       <div>
-                        <p className="font-semibold text-slate-800 text-sm sm:text-base">{member.first_name} {member.last_name}</p>
+                        <p className="font-semibold text-slate-800 text-sm sm:text-base">{memberName(member)}</p>
                         <p className="text-[11px] sm:text-xs text-slate-500 flex items-center gap-1 mt-0.5"><Phone size={10} />{member.phone_number}</p>
                       </div>
                     </div>
@@ -371,14 +373,14 @@ export default function DirectoryTab() {
                     </>
                   ) : (
                     <span className="text-3xl sm:text-4xl font-display font-bold text-slate-400">
-                      {selectedMember.first_name.charAt(0)}{selectedMember.last_name.charAt(0)}
+                      {memberInitials(selectedMember)}
                     </span>
                   )}
                 </button>
 
                 <div className="text-center sm:text-left flex-1 w-full">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2 justify-center sm:justify-start">
-                    <h2 className="text-xl sm:text-2xl font-display font-bold text-slate-800">{selectedMember.first_name} {selectedMember.last_name}</h2>
+                    <h2 className="text-xl sm:text-2xl font-display font-bold text-slate-800">{memberName(selectedMember)}</h2>
                     <span className={`capitalize text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full w-max mx-auto sm:mx-0 ${roleBadgeStyles(selectedMember.role)}`}>
                       {selectedMember.role}
                     </span>
@@ -486,11 +488,11 @@ export default function DirectoryTab() {
           >
             <img
               src={selectedMember.profile_photo_url}
-              alt={`${selectedMember.first_name} ${selectedMember.last_name}`}
+              alt={memberName(selectedMember)}
               className="w-full max-h-[75vh] object-contain rounded-2xl shadow-2xl"
             />
             <div className="mt-4 text-center">
-              <p className="text-white font-display font-bold text-lg">{selectedMember.first_name} {selectedMember.last_name}</p>
+              <p className="text-white font-display font-bold text-lg">{memberName(selectedMember)}</p>
               <p className="font-mono text-xs text-slate-300 mt-1 tracking-widest">{selectedMember.serial_number}</p>
             </div>
           </div>
